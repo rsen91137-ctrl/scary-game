@@ -58,6 +58,8 @@ func _ready() -> void:
 			Settings.apply()
 		elif a.begins_with("--episode="):
 			get_parent().call("_start_episode", a.substr(10))
+		elif a.begins_with("--firstep="):
+			get_parent().set("next_episode", float(a.substr(10)))
 		elif a.begins_with("--noui"):
 			var ui := get_parent().get("ui") as Control
 			if ui:

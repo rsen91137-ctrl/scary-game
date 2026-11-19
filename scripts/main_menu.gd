@@ -200,11 +200,18 @@ func _update_phase(delta: float) -> void:
 		return
 	loop_phase = not loop_phase
 	if loop_phase:
-		# lock onto the stretch just walked through: it will keep coming back
+		# lock onto the stretch just walked through: it will keep coming back,
+		# and the night goes quiet while it does
 		_loop_seed = _recent_seeds.back() if not _recent_seeds.is_empty() else _rng.randi()
 		_phase_left = _rng.randf_range(25.0, 45.0)
+		_amb_target = 0.25
+		if stinger.stream:
+			stinger.volume_db = -20.0
+			stinger.pitch_scale = 0.5
+			stinger.play()
 	else:
 		_phase_left = _rng.randf_range(35.0, 70.0)
+		_amb_target = 1.0
 
 
 # ---------------------------------------------------------------------------
