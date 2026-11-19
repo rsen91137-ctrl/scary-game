@@ -63,13 +63,13 @@ void fragment() {
 	if (dizzy > 0.001) {
 		vec2 off = vec2(0.016 * sin(time_s * 0.73), 0.006 * cos(time_s * 0.51)) * dizzy;
 		vec3 ghost = texture(screen_tex, duv + off).rgb;
-		col = mix(col, ghost, 0.42 * dizzy);
-		col = mix(col, textureLod(screen_tex, duv, 3.0).rgb, 0.3 * dizzy);
+		col = mix(col, ghost, 0.4 * dizzy);
+		col = mix(col, textureLod(screen_tex, duv, 3.0).rgb, 0.16 * dizzy);
 	}
 
 	// softer, slightly blurred edges like a phone lens at night
 	vec3 soft = textureLod(screen_tex, duv, 2.0).rgb;
-	col = mix(col, soft, smoothstep(0.12, 0.5, r2) * (0.3 + 0.4 * dizzy));
+	col = mix(col, soft, smoothstep(0.12, 0.5, r2) * (0.3 + 0.22 * dizzy));
 
 	// tinnitus: the world drains of colour and goes thin and bright
 	float lum0 = dot(col, vec3(0.299, 0.587, 0.114));
@@ -79,7 +79,7 @@ void fragment() {
 
 	// vignette, tightened by tension, the heartbeat and vertigo
 	float vr = length(ca * vec2(0.92, 1.0));
-	float inner = mix(0.92, 0.55, clamp(tension * 0.6 + p * 0.5 + dizzy * 0.3, 0.0, 1.0));
+	float inner = mix(0.92, 0.55, clamp(tension * 0.6 + p * 0.5 + dizzy * 0.18, 0.0, 1.0));
 	float v = smoothstep(inner, 0.12, vr);
 	col *= mix(1.0, v, vignette * (1.0 - 0.5 * tinnitus));
 	col = mix(col, col * vec3(1.25, 0.55, 0.5), (1.0 - v) * p * 0.35);

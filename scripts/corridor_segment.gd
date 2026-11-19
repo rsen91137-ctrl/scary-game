@@ -171,8 +171,8 @@ func configure(new_seed: int) -> void:
 
 	# ---- a failing lamp over one of the two beams (or none)
 	var lamp_roll := r.randf()
-	var has_lamp := lamp_roll < 0.45
-	var modes := ["steady", "flicker", "flicker", "dying", "dying", "dead"]
+	var has_lamp := lamp_roll < 0.52
+	var modes := ["steady", "steady", "flicker", "flicker", "dying", "dead"]
 	var mode: String = modes[r.randi() % modes.size()]
 	lamp.position = Vector3(0.0, CorridorBuilder.BEAM_Y, -CorridorBuilder.BAY * float(r.randi() % 2))
 	lamp.call("configure", has_lamp, mode, new_seed)
