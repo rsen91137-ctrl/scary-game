@@ -9,3 +9,8 @@ build/
 Thumbs.db
 # Python
 __pycache__/
+# BLIND ACT dev scratch (local test scenes)
+blindact/scratch_test/
+blindact/scenes/eye_test.tscn
+# realistic eye textures (unused for now; regenerate with blindact/tools/gen_eye.py)
+blindact/assets/textures/eye_*
