@@ -64,6 +64,10 @@ var _flash := 0.0
 var _next_lightning := 18.0
 var _thunder_in := -1.0
 var lightning: SpotLight3D
+var _memory := 0.0             # 0..1 the image smears into a memory (flashback transitions)
+var _flash_pos := Vector3.ZERO
+var _flash_yaw := PI
+var _moon_k := 0
 
 
 func _ready() -> void:
@@ -83,9 +87,10 @@ func _ready() -> void:
 	stairs.build()
 	stairs.add_colliders()
 	stairs.place_moon(0)
-	stairs.configure(0, 7, "3")
-	stairs.configure(1, 8, "4")
-	stairs.configure(2, 9, "5")
+	stairs.configure(0, 7, "2")
+	stairs.configure(1, 8, "3")
+	stairs.configure(2, 9, "4")
+	stairs.her_floor = 2
 	stairs.add_knock_target()
 
 	player = Player.new()
@@ -138,7 +143,7 @@ func _ready() -> void:
 	_apply_settings()
 	if not _capture:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	var start := "home"
+	var start := "climb"
 	for a: String in OS.get_cmdline_user_args():
 		if a.begins_with("--act="):
 			start = a.substr(6)
@@ -149,8 +154,12 @@ func _ready() -> void:
 		if a.begins_with("--autoplay"):
 			add_child(load("res://scripts/dev_autoplay.gd").new())
 	match start:
-		"stairs":
-			_act_stairs()
+		"home":
+			_act_home()
+		"return":
+			_act_return()
+		"door":
+			_act_return(true)
 		"flat", "piano":
 			_act_flat()
 		"bath":
@@ -158,7 +167,7 @@ func _ready() -> void:
 		"chase":
 			_act_flat_quick_chase()
 		_:
-			_act_home()
+			_act_climb()
 
 
 # ---------------------------------------------------------------------------
@@ -201,6 +210,7 @@ func _setup_ui() -> void:
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	post_mat = ShaderMaterial.new()
 	post_mat.shader = load("res://shaders/screen_fx.gdshader")
+	post_mat.set_shader_parameter("cold", 1.0)
 	rect.material = post_mat
 	fx.add_child(rect)
 	var l := CanvasLayer.new()
@@ -403,8 +413,84 @@ func _to_menu() -> void:
 
 
 # ---------------------------------------------------------------------------
-# ACT 1: home
+# ACT 1: the stairs. He climbs with his cane and his dark glasses; on the
+# third floor a phone rings behind a neighbour's door and he remembers the
+# call that brought him here (ACT 1b, a flashback: home, three hours
+# earlier). Then the last flight, and her door.
 # ---------------------------------------------------------------------------
+func _enter_stairs() -> void:
+	sunglasses_target = 0.8
+	sunglasses = 0.8
+	player.cane_enabled = true
+	player.can_close_eyes = true
+	amb.stream = _stream("res://assets/audio/amb_stair.ogg")
+	amb.volume_db = -4.0
+	amb.play()
+
+
+## Wait until the player has climbed `floors_up` storeys of the stairwell.
+func _climb_to(floors_up: float) -> void:
+	var g := _gen
+	while _alive(g) and player.global_position.y < stairs.global_position.y + StairBuilder.H * floors_up - 0.3:
+		await wait(0.25)
+
+
+func _act_climb() -> void:
+	_gen += 1
+	var g := _gen
+	act = "climb"
+	_enter_stairs()
+	ui.fade_now(1.0)
+	var start := stairs.to_global(Vector3(-0.68, 0.05, 0.4))
+	player.global_position = start
+	player.set_mode("walk", PI)
+	player.yaw = PI
+	await wait(0.8)
+	ui.fade_to(0.0, 3.0)
+	ui.chapter("CH_1", 2.5)
+	await wait(3.2)
+	if not _alive(g):
+		return
+	think("THINK_CLIMB_1", 3.5)
+	get_tree().create_timer(6.0, false).timeout.connect(func() -> void:
+		if act == "climb" and player.global_position.distance_to(start) < 0.6:
+			hint_once("HINT_MOVE", 5.0))
+	get_tree().create_timer(10.0, false).timeout.connect(func() -> void:
+		if act == "climb":
+			think("THINK_STAIRS_1", 3.5)
+			hint_once("HINT_CANE", 5.0))
+	await _climb_to(0.5)
+	if not _alive(g):
+		return
+	think("THINK_CLIMB_2", 4.5)
+	await _climb_to(1.0)
+	if not _alive(g):
+		return
+	# a phone rings behind a neighbour's door; nobody answers it
+	ring_player.global_position = stairs.neighbour_door(1)
+	ring_player.play()
+	await wait(1.6)
+	think("THINK_CLIMB_3", 3.2)
+	await wait(3.6)
+	if not _alive(g):
+		return
+	think("THINK_CLIMB_4", 3.4)
+	_flash_pos = player.global_position
+	_flash_yaw = player.yaw
+	player.set_mode("locked")
+	player.face_point(stairs.neighbour_door(1), 0.4)
+	# the memory takes over: the image smears, doubles, drains
+	create_tween().tween_method(func(v: float) -> void: _memory = v, 0.0, 1.0, 2.8)
+	await wait(2.6)
+	ui.fade_to(1.0, 0.9)
+	await wait(1.1)
+	ring_player.stop()
+	if not _alive(g):
+		return
+	_memory = 0.0
+	_act_home()
+
+
 func _act_home() -> void:
 	_gen += 1
 	var g := _gen
@@ -419,11 +505,12 @@ func _act_home() -> void:
 	player.can_close_eyes = false
 	sunglasses_target = 0.0
 	ring_player.global_position = flat.spots.home_phone
-	await wait(1.0)
+	ui.fade_now(1.0)
+	await wait(0.6)
 	ring_player.play()
 	ui.fade_to(0.0, 2.5)
-	ui.chapter("CH_1", 2.0)
-	await wait(2.0)
+	ui.chapter("FLASH_PAST", 2.5)
+	await wait(2.4)
 	if not _alive(g):
 		return
 	think("THINK_PHONE_1", 3.0)
@@ -499,7 +586,7 @@ func _act_home() -> void:
 	_sfx3d("res://assets/audio/door_creak.ogg", flat.spots.home_out, -6.0)
 	ui.fade_to(1.0, 1.2)
 	await wait(1.6)
-	_act_stairs()
+	_act_return()
 
 
 func _ring_loop(g: int) -> void:
@@ -510,33 +597,41 @@ func _ring_loop(g: int) -> void:
 
 
 # ---------------------------------------------------------------------------
-# ACT 2: the stairs and the door
+# ACT 2: back on the stairs (now), the last flight and the door
 # ---------------------------------------------------------------------------
-func _act_stairs() -> void:
+func _act_return(at_door := false) -> void:
 	_gen += 1
 	var g := _gen
 	act = "stairs"
-	sunglasses_target = 0.8
-	sunglasses = 0.8
-	player.cane_enabled = true
-	player.can_close_eyes = true
-	amb.stream = _stream("res://assets/audio/amb_stair.ogg")
-	amb.volume_db = -4.0
-	amb.play()
-	player.global_position = stairs.to_global(Vector3(-0.68, 0.05, 0.4))
-	player.set_mode("walk", 0.0 + PI)
-	player.yaw = PI
-	ui.fade_to(0.0, 1.5)
-	await wait(1.5)
-	think("THINK_STAIRS_1", 3.5)
-	get_tree().create_timer(6.0, false).timeout.connect(func() -> void:
-		if act == "stairs":
-			hint_once("HINT_CANE", 5.0))
-	# up one floor to her landing
-	while _alive(g) and player.global_position.y < stairs.global_position.y + StairBuilder.H - 0.4:
-		await wait(0.3)
-	if not _alive(g):
-		return
+	_enter_stairs()
+	if at_door:
+		_flash_pos = stairs.to_global(Vector3(-0.6, StairBuilder.H * stairs.her_floor + 0.05, -0.2))
+		_flash_yaw = PI * 0.5
+	elif _flash_pos == Vector3.ZERO:
+		_flash_pos = stairs.to_global(Vector3(-0.6, StairBuilder.H + 0.05, -0.4))
+	ui.fade_now(1.0)
+	player.global_position = _flash_pos
+	player.set_mode("walk", _flash_yaw)
+	player.yaw = _flash_yaw
+	player.pitch = 0.0
+	_memory = 0.7
+	create_tween().tween_method(func(v: float) -> void: _memory = v, 0.7, 0.0, 2.6)
+	ui.fade_to(0.0, 1.8)
+	if not at_door:
+		ui.chapter("FLASH_NOW", 2.0)
+		await wait(2.8)
+		if not _alive(g):
+			return
+		think("THINK_CLIMB_5", 3.8)
+		await _climb_to(1.5)
+		if not _alive(g):
+			return
+		think("THINK_CLIMB_6", 3.5)
+		await _climb_to(float(stairs.her_floor))
+		if not _alive(g):
+			return
+	else:
+		await wait(1.0)
 	think("THINK_DOOR_0", 2.5)
 	await wait_interact("her_door")
 	if not _alive(g):
@@ -549,7 +644,7 @@ func _act_stairs() -> void:
 	_sfx3d("res://assets/audio/door_creak.ogg", stairs.knock_pos(), -4.0)
 	create_tween().tween_property(hinge, "rotation:y", -1.25, 1.6).set_trans(Tween.TRANS_SINE)
 	man.visible = true
-	man.global_position = stairs.to_global(Vector3(-StairBuilder.W - 0.35, StairBuilder.H, -1.0))
+	man.global_position = stairs.to_global(Vector3(-StairBuilder.W - 0.35, StairBuilder.H * stairs.her_floor, -1.0))
 	man.look_at(Vector3(player.global_position.x, man.global_position.y, player.global_position.z), Vector3.UP, true)
 	man.set_pose("stand", 0.0)
 	await wait(1.8)
@@ -1210,7 +1305,7 @@ func _on_interact(id: String) -> void:
 
 func _on_tap(pos: Vector3) -> void:
 	_sfx3d("res://assets/audio/cane_tap_%d.ogg" % _rng.randi_range(1, 4), pos, -6.0, 2.0)
-	if act == "stairs":
+	if act == "stairs" or act == "climb":
 		for L: SensorLight in stairs.lights:
 			if L.global_position.distance_to(pos) < 3.6:
 				L.trigger()
@@ -1223,7 +1318,7 @@ func _on_tap(pos: Vector3) -> void:
 func _on_step(pos: Vector3) -> void:
 	var path := "res://assets/audio/step_%d.ogg" % _rng.randi_range(1, 8)
 	_sfx3d(path, pos, -12.0 if act != "chase" else -6.0, 2.0)
-	if act == "stairs":
+	if act == "stairs" or act == "climb":
 		for L: SensorLight in stairs.lights:
 			if L.global_position.distance_to(pos) < 2.8:
 				L.trigger()
@@ -1298,6 +1393,15 @@ func _process(delta: float) -> void:
 	flat.window_mat.set_shader_parameter("flash", fl)
 	flat.window_mat.set_shader_parameter("time_s", _t)
 	stairs.window_mat.set_shader_parameter("time_s", _t)
+	var memory_look := 0.3 if act == "home" else 0.0
+	post_mat.set_shader_parameter("ghost", _memory * 0.7 + memory_look * 0.4)
+	post_mat.set_shader_parameter("blur", _memory * 0.9)
+	post_mat.set_shader_parameter("desaturate", clampf(_memory * 0.6 + memory_look, 0.0, 1.0))
+	if act == "climb" or act == "stairs":
+		var k := clampi(int((player.global_position.y - stairs.global_position.y) / StairBuilder.H + 0.25), 0, 2)
+		if k != _moon_k:
+			_moon_k = k
+			stairs.place_moon(k)
 	post_mat.set_shader_parameter("sunglasses", sunglasses)
 	post_mat.set_shader_parameter("tremble", adrenaline * 0.6)
 	post_mat.set_shader_parameter("pulse", body.pulse * (0.5 + adrenaline))

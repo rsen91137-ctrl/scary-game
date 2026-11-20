@@ -135,42 +135,84 @@ func _tex(name: String) -> Texture2D:
 	return load(p) if ResourceLoader.exists(p) else null
 
 
+## A PBR material from assets/textures/chars/<who>_<part>_{albedo,normal,rough}.
+func _pbr(part: String, normal_scale := 1.0) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = _tex("%s_%s_albedo" % [who, part])
+	var n := _tex("%s_%s_normal" % [who, part])
+	if n:
+		m.normal_enabled = true
+		m.normal_texture = n
+		m.normal_scale = normal_scale
+	var r := _tex("%s_%s_rough" % [who, part])
+	if r:
+		m.roughness_texture = r
+		m.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	return m
+
+
 func _apply_materials() -> void:
-	var skin := StandardMaterial3D.new()
-	skin.albedo_texture = _tex(who + "_albedo")
-	skin.normal_enabled = true
-	skin.normal_texture = _tex(who + "_normal")
-	skin.normal_scale = 0.6
-	skin.roughness_texture = _tex(who + "_rough")
-	skin.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+	var dead := who == "woman"
+	var mats := {}
+	var skin := _pbr("skin", 0.8)
 	skin.subsurf_scatter_enabled = true
-	skin.subsurf_scatter_strength = 0.35 if who == "man" else 0.15
+	skin.subsurf_scatter_strength = 0.12 if dead else 0.4
 	skin.subsurf_scatter_skin_mode = true
-	skin.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-	var eye := StandardMaterial3D.new()
-	eye.albedo_texture = _tex("eye_" + who)
-	eye.roughness = 0.08
-	eye.clearcoat_enabled = true
-	eye.clearcoat = 1.0
-	eye.clearcoat_roughness = 0.02
-	var hair := StandardMaterial3D.new()
-	hair.albedo_texture = _tex("hair_strands")
-	hair.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_HASH
-	hair.alpha_hash_scale = 1.0
+	skin.metallic_specular = 0.38
+	mats["body"] = skin
+	var cloth := _pbr("cloth", 0.6 if dead else 0.35)
+	cloth.rim_enabled = true
+	cloth.rim = 0.25 if dead else 0.2
+	cloth.rim_tint = 0.7
+	cloth.metallic_specular = 0.4 if dead else 0.3
+	mats["cloth"] = cloth
+	var shoes := _pbr("shoes", 0.6)
+	shoes.clearcoat_enabled = true
+	shoes.clearcoat = 0.35
+	shoes.clearcoat_roughness = 0.4
+	mats["shoes"] = shoes
+	# hair: solid where opaque (depth pre-pass), soft blended edges
+	var hair := _pbr("hair", 0.5)
+	hair.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+	hair.alpha_scissor_threshold = 0.3
 	hair.cull_mode = BaseMaterial3D.CULL_DISABLED
-	hair.roughness = 0.45
-	hair.anisotropy_enabled = true
-	hair.anisotropy = 0.7
+	hair.metallic_specular = 0.3
+	mats["hair"] = hair
+	for part in ["brows", "lashes"]:
+		var fine := _pbr(part)
+		fine.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		fine.cull_mode = BaseMaterial3D.CULL_DISABLED
+		fine.roughness = 0.6
+		fine.metallic_specular = 0.2
+		mats[part] = fine
+	var eye := _pbr("eyes")
+	eye.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
+	eye.subsurf_scatter_enabled = true
+	eye.subsurf_scatter_strength = 0.1
+	mats["eyes"] = eye
+	# the cornea: a wet film that only adds reflections and highlights
+	var cornea := StandardMaterial3D.new()
+	cornea.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	cornea.albedo_color = Color.BLACK
+	cornea.roughness = 0.04 if not dead else 0.3
+	cornea.metallic_specular = 1.0 if not dead else 0.5
+	cornea.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
+	mats["cornea"] = cornea
+	var teeth := _pbr("teeth")
+	teeth.metallic_specular = 0.5
+	mats["teeth"] = teeth
+	var tongue := _pbr("tongue")
+	tongue.subsurf_scatter_enabled = true
+	tongue.subsurf_scatter_strength = 0.2
+	mats["tongue"] = tongue
 	for m: MeshInstance3D in meshes:
-		var n := m.name.to_lower()
-		var mat: Material = skin
-		if "eye" in n:
-			mat = eye
-		elif "hair" in n:
-			mat = hair
+		var part := String(m.name).get_slice("_", 1).to_lower()
+		var mat: Material = mats.get(part, skin)
 		for s in m.mesh.get_surface_count():
 			m.set_surface_override_material(s, mat)
-		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		var shadow := part not in ["brows", "lashes", "cornea", "eyes", "teeth", "tongue"]
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadow else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 func _solve(spec: Dictionary) -> Dictionary:

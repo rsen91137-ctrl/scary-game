@@ -52,10 +52,14 @@ func _process(delta: float) -> void:
 					p.interacted.emit(id)
 			if _act_t > 10.0:
 				game.set("_clicks", 2)
-		"stairs":
+		"climb":
+			# up to the third floor, where the phone rings
 			if _act_t > 2.0 and _once("climb"):
 				p.global_position = game.stairs.to_global(Vector3(-0.6, StairBuilder.H + 0.05, -0.4))
-			if _act_t > 4.0 and fmod(_act_t, 1.5) < get_process_delta_time():
+		"stairs":
+			if _act_t > 3.0 and _once("climb2"):
+				p.global_position = game.stairs.to_global(Vector3(-0.6, StairBuilder.H * game.stairs.her_floor + 0.05, -0.4))
+			if _act_t > 5.0 and fmod(_act_t, 1.5) < get_process_delta_time():
 				p.interacted.emit("her_door")
 			if p.expect_gesture:
 				p.gesture.emit("nod")
@@ -65,7 +69,8 @@ func _process(delta: float) -> void:
 			if p.expect_gesture:
 				p.gesture.emit("nod")
 			# walking parts: walk the hall, wash, come back, leave
-			if p.mode == "walk" and not piano.active:
+			# (never move while he charges: that is exactly the bait)
+			if p.mode == "walk" and not piano.active and float(game.get("adrenaline")) < 0.05:
 				var bath_done: bool = _did.has("sink")
 				if not bath_done:
 					if _once("to_bath"):

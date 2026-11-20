@@ -19,7 +19,7 @@ def edit(p: Path, subs):
     p.write_text(s)
 
 
-for p in (ROOT / "assets" / "textures").glob("*.png.import"):
+for p in (ROOT / "assets" / "textures").rglob("*.png.import"):
     normal = "_normal" in p.name
     edit(p, [(r"^compress/mode=\d", "compress/mode=2"),
              (r"^mipmaps/generate=\w+", "mipmaps/generate=true"),

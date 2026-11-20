@@ -94,6 +94,7 @@ func _ready() -> void:
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	post_mat = ShaderMaterial.new()
 	post_mat.shader = load("res://shaders/screen_fx.gdshader")
+	post_mat.set_shader_parameter("cold", 1.0)
 	rect.material = post_mat
 	layer.add_child(rect)
 	var ui_layer := CanvasLayer.new()

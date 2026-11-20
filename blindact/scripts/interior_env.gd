@@ -15,7 +15,7 @@ func setup(parent: Node) -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0, 0, 0)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.09, 0.1, 0.13)
+	env.ambient_light_color = Color(0.07, 0.09, 0.12)
 	env.ambient_light_energy = 0.4
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
@@ -39,12 +39,12 @@ func setup(parent: Node) -> void:
 	env.ssil_intensity = 0.9
 	env.volumetric_fog_enabled = true
 	env.volumetric_fog_density = 0.015
-	env.volumetric_fog_albedo = Color(0.8, 0.8, 0.82)
+	env.volumetric_fog_albedo = Color(0.7, 0.78, 0.86)
 	env.volumetric_fog_anisotropy = 0.55
 	env.volumetric_fog_length = 24.0
 	env.volumetric_fog_ambient_inject = 0.0
 	env.adjustment_enabled = true
-	env.adjustment_saturation = 0.85
+	env.adjustment_saturation = 0.72
 	env.adjustment_contrast = 1.08
 	world_env = WorldEnvironment.new()
 	world_env.environment = env

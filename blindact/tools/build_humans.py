@@ -1,25 +1,39 @@
 #!/usr/bin/env python3
-"""Build the two people of the night from the MakeHuman CC0 data in
-art/makehuman, in headless Blender (pip package `bpy`).
+"""Build the two people of the night from MakeHuman CC0 data, in headless
+Blender (pip package `bpy`).
 
-  man    the husband: heavy-set, about fifty, white shirt with the sleeves
-         rolled up (blood on the cuffs and the front), dark trousers, black
-         shoes, stubble, short dark hair
-  woman  his wife, dead: slim, thirty-ish, a dark slip dress, barefoot, pale
-         with the lividity of the dead, a thin ligature mark round her neck
-         (a piano string), long dark hair, eyes half open, mouth slack
+  man    the husband, about fifty: a white dress shirt (blood sprayed on the
+         front, soaked into the cuffs, wiped off his hands on the hips), dark
+         jeans and belt, black shoes, short greying hair, stubble, tired eyes,
+         three fresh scratches down the left side of his neck (she fought)
+  woman  his wife, dead: thirty-ish, a wine-dark satin blouse (damp from the
+         bath) and a charcoal skirt, barefoot, long dark hair; bloodless,
+         livid where the blood settled, a thin deep ligature groove round the
+         neck (a piano string) with her own nail scratches above it, clouded
+         eyes with petechiae, eyes half open, mouth slack
+
+Data
+  art/makehuman          base mesh, skeleton + weights, targets (committed)
+  art/makehuman/mh111    MakeHuman 1.1.1 system assets: clothes, shoes, hair,
+                         brows, lashes, teeth, tongue, eyes, skin textures
+                         (fetch with tools/fetch_makehuman.sh)
+Every proxy (.mhclo) is fitted to the morphed body the way MakeHuman does:
+each vertex is a weighted sum of three body vertices plus an offset scaled by
+the body's proportions; its skin weights are blended from the same vertices
+(or read from the proxy's own .mhw). Body vertices a garment covers are
+removed so nothing pokes through.
 
 Outputs
-  assets/models/man.glb, assets/models/woman.glb       skinned (MakeHuman
-      default skeleton, 163 bones, A-pose rest), facing +Z, Y up, metres
-  assets/textures/chars/<who>_albedo.png / _normal.png / _rough.png
-  assets/textures/chars/hair_strands.png, eye_brown.png
+  assets/models/<who>.glb  meshes <who>_body/_cloth/_shoes/_hair/_brows/
+      _lashes/_eyes/_cornea/_teeth/_tongue skinned to the MakeHuman default
+      skeleton (163 bones, A-pose rest); body and clothes subdivided once;
+      facing +Z, Y up, metres
+  assets/textures/chars/<who>_<part>_{albedo,normal,rough}.png
 Usage: python3 tools/build_humans.py [man|woman]
 """
 from __future__ import annotations
 
 import json
-import math
 import sys
 from pathlib import Path
 
@@ -31,12 +45,14 @@ import texlib as T  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 MH = ROOT / "art" / "makehuman"
+MX = MH / "mh111"
 OUT_M = ROOT / "assets" / "models"
 OUT_T = ROOT / "assets" / "textures" / "chars"
 OUT_M.mkdir(parents=True, exist_ok=True)
 OUT_T.mkdir(parents=True, exist_ok=True)
 SCALE = 0.1                    # MakeHuman decimetres -> metres
-TEX = 2048
+L = T.srgb_to_linear
+LUMA = np.array([0.2126, 0.7152, 0.0722], np.float32)
 
 SPEC = {
     "man": {
@@ -45,14 +61,30 @@ SPEC = {
                     ("universal-male-old-averagemuscle-averageweight", 0.38),
                     ("caucasian-male-young", 0.6), ("caucasian-male-old", 0.4),
                     ("mouth-corner-puller", 0.12)],
+        "skin": "skins/textures/middleage_lightskinned_male_diffuse.png",
+        "eye": "eyes/materials/brown_eye.png",
+        "parts": [("cloth", "clothes/male_casualsuit01"), ("shoes", "clothes/shoes03"),
+                  ("hair", "hair/short02"), ("brows", "eyebrows/eyebrow009"),
+                  ("lashes", "eyelashes/eyelashes01"), ("teeth", "teeth/teeth_base"),
+                  ("tongue", "tongue/tongue01"), ("eyes", "eyes/high-poly")],
     },
     "woman": {
         "targets": [("universal-female-young-averagemuscle-averageweight", 0.6),
                     ("universal-female-young-averagemuscle-minweight", 0.4),
                     ("caucasian-female-young", 1.0),
-                    ("mouth-open", 0.32), ("eye-left-closure", 0.55), ("eye-right-closure", 0.6)],
+                    ("mouth-open", 0.22), ("eye-left-closure", 0.55), ("eye-right-closure", 0.6)],
+        "skin": "skins/textures/young_lightskinned_female_diffuse.png",
+        "eye": "eyes/materials/brownlight_eye.png",
+        "parts": [("cloth", "clothes/female_elegantsuit01"), ("hair", "hair/long01"),
+                  ("brows", "eyebrows/eyebrow010"), ("lashes", "eyelashes/eyelashes02"),
+                  ("teeth", "teeth/teeth_base"), ("tongue", "tongue/tongue01"),
+                  ("eyes", "eyes/high-poly")],
     },
 }
+SUBDIV = {"body", "cloth", "shoes"}
+UPPER = ("spine", "clavicle", "shoulder", "upperarm", "lowerarm", "wrist", "neck", "breast", "head",
+         "finger", "metacarpal")
+LOWER = ("pelvis", "upperleg", "lowerleg", "foot", "toe", "root")
 
 
 # ---------------------------------------------------------------------------
@@ -89,27 +121,158 @@ def load_target(name: str):
     return np.array(idx, np.int64), np.array(d, np.float64).reshape(-1, 3)
 
 
-def vertex_normals(V, tris):
+def parse_mhclo(path: Path) -> dict:
+    """MakeHuman proxy file: reference vertices / weights / offsets per proxy
+    vertex, the axis scale references and the body vertices it hides."""
+    refs, wts, offs = [], [], []
+    delete: set[int] = set()
+    scale = [None, None, None]
+    status = None
+    for line in open(path):
+        w = line.split()
+        if not w or w[0].startswith("#") or w[0].startswith("//"):
+            continue
+        k = w[0]
+        if k[0].isalpha():
+            # like MakeHuman: keywords switch sections only when they name one
+            if k == "verts":
+                status = "v"
+            elif k == "delete_verts":
+                status = "d"
+            elif k == "weights":
+                status = None
+            elif k in ("x_scale", "y_scale", "z_scale"):
+                scale["xyz".index(k[0])] = (int(w[1]), int(w[2]), float(w[3]))
+            continue
+        if status == "v":
+            if len(w) == 1:
+                refs.append([int(w[0])] * 3)
+                wts.append([1.0, 0.0, 0.0])
+                offs.append([0.0, 0.0, 0.0])
+            else:
+                refs.append([int(x) for x in w[:3]])
+                wts.append([float(x) for x in w[3:6]])
+                offs.append([float(x) for x in w[6:9]] if len(w) >= 9 else [0.0, 0.0, 0.0])
+        elif status == "d":
+            seq = False
+            v0 = 0
+            for t in w:
+                if t == "-":
+                    seq = True
+                    continue
+                v = int(t)
+                if seq:
+                    delete.update(range(v0, v + 1))
+                    seq = False
+                else:
+                    delete.add(v)
+                v0 = v
+    return {"refs": np.array(refs, np.int64), "wts": np.array(wts, np.float64),
+            "offs": np.array(offs, np.float64), "delete": delete, "scale": scale}
+
+
+def fit(px: dict, V: np.ndarray) -> np.ndarray:
+    S = np.ones(3)
+    for n, sd in enumerate(px["scale"]):
+        if sd:
+            a, b, den = sd
+            S[n] = abs(V[a, n] - V[b, n]) / den
+    return (V[px["refs"]] * px["wts"][..., None]).sum(1) + px["offs"] * S
+
+
+def normalize_weights(W: dict, n: int, fallback: dict | None = None) -> dict:
+    tot = np.zeros(n)
+    for a in W.values():
+        tot += a
+    bad = tot < 1e-6
+    if bad.any() and fallback:
+        for b, a in fallback.items():
+            W.setdefault(b, np.zeros(n))
+            W[b] = np.where(bad, a, W[b])
+        tot = np.zeros(n)
+        for a in W.values():
+            tot += a
+    tot = np.where(tot > 1e-9, tot, 1.0)
+    out = {}
+    for b, a in W.items():
+        a = a / tot
+        a = np.where(a > 0.004, a, 0.0)
+        if a.any():
+            out[b] = a
+    return out
+
+
+def proxy_weights(px: dict, Wfull: dict, n: int, own: Path | None) -> dict:
+    if own is not None and own.exists():
+        raw = json.load(open(own))["weights"]
+        W = {}
+        for bone, lst in raw.items():
+            items = lst.items() if isinstance(lst, dict) else lst
+            a = np.zeros(n)
+            for vi, w in items:
+                if int(vi) < n:
+                    a[int(vi)] = float(w)
+            if a.any():
+                W[bone] = a
+        return normalize_weights(W, n)
+    W = {}
+    for bone, arr in Wfull.items():
+        w = (arr[px["refs"]] * px["wts"]).sum(1)
+        w = np.where(w > 1e-4, w, 0.0)
+        if w.any():
+            W[bone] = w
+    first = {b: arr[px["refs"][:, 0]] for b, arr in Wfull.items() if arr[px["refs"][:, 0]].any()}
+    return normalize_weights(W, n, first)
+
+
+def region(W: dict, n: int, prefixes) -> np.ndarray:
+    s = np.zeros(n)
+    for b, a in W.items():
+        if any(b.startswith(p) for p in prefixes):
+            s += a
+    return np.clip(s, 0, 1)
+
+
+def vertex_normals(V, quads):
     n = np.zeros_like(V)
-    a, b, c = V[tris[:, 0]], V[tris[:, 1]], V[tris[:, 2]]
-    fn = np.cross(b - a, c - a)
-    for k in range(3):
-        np.add.at(n, tris[:, k], fn)
+    for k in range(1, quads.shape[1] - 1):
+        a, b, c = V[quads[:, 0]], V[quads[:, k]], V[quads[:, k + 1]]
+        fn = np.cross(b - a, c - a)
+        for j in (0, k, k + 1):
+            np.add.at(n, quads[:, j], fn)
     ln = np.linalg.norm(n, axis=1, keepdims=True)
     return n / np.maximum(ln, 1e-12)
 
 
-def neighbours(nv, tris):
-    nb = [set() for _ in range(nv)]
-    for a, b, c in tris:
-        nb[a].update((b, c))
-        nb[b].update((a, c))
-        nb[c].update((a, b))
-    return [np.array(sorted(s), dtype=np.int64) for s in nb]
+def tris_of(quads, fuv):
+    q = np.asarray(quads)
+    u = np.asarray(fuv)
+    t = np.concatenate([q[:, [0, 1, 2]], q[:, [0, 2, 3]]])
+    tu = np.concatenate([u[:, [0, 1, 2]], u[:, [0, 2, 3]]])
+    keep = (t[:, 1] != t[:, 2]) & (t[:, 0] != t[:, 2])
+    return t[keep], tu[keep]
+
+
+def uv_islands(fuv: np.ndarray, ntex: int) -> np.ndarray:
+    parent = np.arange(ntex)
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for f in fuv:
+        r0 = find(int(f[0]))
+        for t in f[1:]:
+            r = find(int(t))
+            if r != r0:
+                parent[r] = r0
+    return np.array([find(int(f[0])) for f in fuv])
 
 
 # ---------------------------------------------------------------------------
-# 3D value noise for texturing
+# 3D value noise for painting in object space
 # ---------------------------------------------------------------------------
 def _hash3(ix, iy, iz):
     h = (ix * 73856093) ^ (iy * 19349663) ^ (iz * 83492791)
@@ -142,170 +305,15 @@ def fbm3(p, freq, octaves=4):
 
 
 # ---------------------------------------------------------------------------
-# build one person
+# texture space helpers
 # ---------------------------------------------------------------------------
-def build(who: str):
-    V0, VT, faces = load_obj(MH / "base.obj")
-    V = V0.copy()
-    for name, w in SPEC[who]["targets"]:
-        idx, d = load_target(name)
-        if len(idx):
-            V[idx] += d * w
-    sk = json.load(open(MH / "rigs" / "default.mhskel"))
-    wts = json.load(open(MH / "rigs" / "default_weights.mhw"))["weights"]
-    J = sk["joints"]
-
-    def joint(name):
-        return V[J[name]].mean(0) * SCALE
-
-    # keep the body only (drop helper geometry), remap
-    body_faces = [f for f in faces if f[2] == "body"]
-    used = sorted({v for f in body_faces for v in f[0]})
-    remap = -np.ones(len(V), np.int64)
-    remap[used] = np.arange(len(used))
-    P = V[used] * SCALE
-    quads = [[int(remap[v]) for v in f[0]] for f in body_faces]
-    fuv = [f[1] for f in body_faces]
-    tris = []
-    tri_uv = []
-    for q, tq in zip(quads, fuv):
-        for k in range(1, len(q) - 1):
-            tris.append([q[0], q[k], q[k + 1]])
-            tri_uv.append([tq[0], tq[k], tq[k + 1]])
-    tris = np.array(tris)
-    tri_uv = np.array(tri_uv)
-    nv = len(P)
-
-    # bone weights per vertex (remapped)
-    W = {}
-    for bone, lst in wts.items():
-        if isinstance(lst, dict):
-            items = list(lst.items())
-        else:
-            items = lst
-        arr = np.zeros(nv)
-        for vi, w in items:
-            vi = int(vi)
-            if remap[vi] >= 0:
-                arr[remap[vi]] = float(w)
-        if arr.any():
-            W[bone] = arr
-
-    def bw(*prefixes):
-        s = np.zeros(nv)
-        for b, a in W.items():
-            if any(b.startswith(p) for p in prefixes):
-                s += a
-        return np.clip(s, 0, 1)
-
-    N = vertex_normals(P, tris)
-    nb = neighbours(nv, tris)
-
-    def along(p_from, p_to):
-        d = p_to - p_from
-        return np.clip(((P - p_from) @ d) / (d @ d), 0, 1)
-
-    # ---- regions ----------------------------------------------------------
-    j_neck = joint(sk["bones"]["neck01"]["head"])
-    j_head = joint(sk["bones"]["head"]["head"])
-    groups = {}
-    for f in faces:
-        groups.setdefault(f[2], set()).update(f[0])
-    eye_l = V[sorted(groups["joint-l-eye"])].mean(0) * SCALE
-    eye_r = V[sorted(groups["joint-r-eye"])].mean(0) * SCALE
-    eye_y = (eye_l[1] + eye_r[1]) * 0.5
-    face_z = P[:, 2].max()
-    torso = bw("spine", "breast", "clavicle", "shoulder01", "root")
-    upper_arm = bw("upperarm")
-    fore = bw("lowerarm")
-    hip = bw("pelvis")
-    thigh = bw("upperleg")
-    shin = bw("lowerleg")
-    foot = bw("foot", "toe")
-    neck = bw("neck")
-    headw = bw("head", "jaw", "oris", "orbicularis", "levator", "risorius", "special", "oculi", "eye", "tongue")
-    lips = bw("oris")
-    hands = bw("wrist", "metacarpal", "finger")
-    # forearm position along elbow -> wrist (both sides)
-    t_fore = np.zeros(nv)
-    for side in ("L", "R"):
-        e = joint(sk["bones"][f"lowerarm01.{side}"]["head"])
-        wr = joint(sk["bones"][f"wrist.{side}"]["head"])
-        mask = (np.sign(P[:, 0]) == (1 if side == "L" else -1))
-        t_fore = np.where(mask, along(e, wr), t_fore)
-    t_thigh = np.zeros(nv)
-    for side in ("L", "R"):
-        hp_ = joint(sk["bones"][f"upperleg01.{side}"]["head"])
-        kn = joint(sk["bones"][f"lowerleg01.{side}"]["head"])
-        mask = (np.sign(P[:, 0]) == (1 if side == "L" else -1))
-        t_thigh = np.where(mask, along(hp_, kn), t_thigh)
-    neck_low = np.clip((j_neck[1] + 0.045 - P[:, 1]) / 0.03, 0, 1) * neck
-
-    if who == "man":
-        cloth_top = np.clip(torso + upper_arm + neck_low + fore * (t_fore < 0.42) + bw("breast"), 0, 1)
-        cloth_top = cloth_top * (1 - hip * 0.0)
-        cloth_bot = np.clip(hip + thigh + shin * (1 - foot), 0, 1)
-        shoes = np.clip(foot + shin * (P[:, 1] < joint(sk["bones"]["foot.L"]["head"])[1] + 0.05), 0, 1)
-        cloth_bot = np.clip(cloth_bot - shoes, 0, 1)
-        # the shirt is tucked in: the waistband belongs to the trousers
-        waist = joint(sk["bones"]["spine05"]["head"])[1] + 0.04
-        tuck = np.clip((waist - P[:, 1]) / 0.02, 0, 1)
-        cloth_bot = np.maximum(cloth_bot, cloth_top * tuck * (1 - upper_arm) * (1 - fore))
-        cloth_top = cloth_top * (1 - tuck * (1 - upper_arm) * (1 - fore))
-        inflate = cloth_top * 0.011 + cloth_bot * 0.009 + shoes * 0.012
-    else:
-        dress = np.clip(torso + bw("breast") + hip + thigh * (t_thigh < 0.62), 0, 1)
-        dress = dress * (1 - np.clip(bw("clavicle", "shoulder01") * 0.6, 0, 1))
-        cloth_top = dress
-        cloth_bot = np.zeros(nv)
-        shoes = np.zeros(nv)
-        inflate = dress * 0.008
-    # scalp hair cap for the man (short hair)
-    rel = P - np.array([0.0, eye_y, 0.0])
-    front = (P[:, 2] - (j_head[2] + 0.03)) / 0.08
-    hairline = 0.058 - 0.12 * np.clip(-front, 0, 1)         # lower at the back and sides
-    scalp = np.clip((rel[:, 1] - hairline) / 0.02, 0, 1) * np.clip(headw, 0, 1)
-    if who == "man":
-        inflate = inflate + scalp * 0.004
-
-    # ---- inflate the clothes and smooth away the anatomy under them ----------
-    off = N * inflate[:, None]
-    P2 = P + off
-    cl = np.clip(cloth_top + cloth_bot, 0, 1)
-    for _ in range(6):
-        avg = np.array([P2[n].mean(0) if len(n) else P2[i] for i, n in enumerate(nb)])
-        P2 = P2 + (avg - P2) * (cl * 0.5)[:, None]
-    P = P2
-    N = vertex_normals(P, tris)
-
-    # ---- texture: rasterise attributes into UV space -------------------------
-    attrs = {
-        "pos": P, "nrm": N, "top": cloth_top, "bot": cloth_bot, "shoe": shoes, "lips": lips,
-        "scalp": scalp, "hands": hands, "neck": neck, "head": headw, "tfore": t_fore,
-    }
-    tex = rasterize(VT, tri_uv, tris, attrs)
-    albedo, normal, rough = paint(who, tex, eye_y, eye_l, eye_r, j_neck, face_z)
-    T.save(OUT_T / f"{who}_albedo.png", albedo)
-    T.save(OUT_T / f"{who}_normal.png", normal)
-    T.save(OUT_T / f"{who}_rough.png", rough)
-
-    # ---- hair (woman) -----------------------------------------------------------
-    hair = make_hair(P, N, scalp, eye_y, j_head, short=(who == "man"))
-
-    # ---- eyes -------------------------------------------------------------------
-    eyes = load_eyes(V0, V, groups)
-
-    bake_eye(who, eyes)
-    blender_export(who, P, quads, fuv, VT, W, sk, joint, hair, eyes)
-
-
-def rasterize(VT, tri_uv, tris, attrs):
+def rasterize(VT, tri_uv, tris, attrs, size):
     """For every texel covered by a triangle in UV space, interpolate the
-    per-vertex attributes. Returns dict of (TEX, TEX, C) arrays + 'mask'."""
-    H = Wd = TEX
+    per-vertex attributes. Returns dict of (size, size[, C]) arrays + 'mask'."""
+    H = Wd = size
     out = {k: np.zeros((H, Wd) + ((v.shape[1],) if v.ndim == 2 else ()), np.float32) for k, v in attrs.items()}
     mask = np.zeros((H, Wd), np.float32)
-    uv = VT[tri_uv]                     # (T, 3, 2)
+    uv = VT[tri_uv]
     px = uv[..., 0] * Wd
     py = (1.0 - uv[..., 1]) * H
     for t in range(len(tris)):
@@ -323,7 +331,7 @@ def rasterize(VT, tri_uv, tris, attrs):
         l1 = ((by - cy) * (xs - cx) + (cx - bx) * (ys - cy)) / den
         l2 = ((cy - ay) * (xs - cx) + (ax - cx) * (ys - cy)) / den
         l3 = 1 - l1 - l2
-        inside = (l1 >= -0.01) & (l2 >= -0.01) & (l3 >= -0.01)
+        inside = (l1 >= -0.02) & (l2 >= -0.02) & (l3 >= -0.02)
         if not inside.any():
             continue
         yy = ys[inside].astype(int)
@@ -331,26 +339,19 @@ def rasterize(VT, tri_uv, tris, attrs):
         b = np.stack([l1[inside], l2[inside], l3[inside]], -1)
         vi = tris[t]
         for k, v in attrs.items():
-            vals = v[vi]                # (3,) or (3, C)
-            if vals.ndim == 1:
-                out[k][yy, xx] = b @ vals
-            else:
-                out[k][yy, xx] = b @ vals
+            out[k][yy, xx] = b @ v[vi]
         mask[yy, xx] = 1.0
     out["mask"] = mask
     return out
 
 
-def dilate(img, mask, it=8):
+def dilate(img, mask, it=10):
     """Grow the painted islands into the empty texels to hide UV seams."""
-    m = mask.copy()
-    img = img.copy()
+    m = mask.astype(np.float32).copy()
+    img = np.ascontiguousarray(img, np.float32).copy()
     k = np.ones((3, 3), np.float32)
     for _ in range(it):
-        if img.ndim == 3:
-            s = cv2.filter2D(img * m[..., None], -1, k)
-        else:
-            s = cv2.filter2D(img * m, -1, k)
+        s = cv2.filter2D(img * (m[..., None] if img.ndim == 3 else m), -1, k)
         c = cv2.filter2D(m, -1, k)
         grow = (c > 0) & (m == 0)
         if img.ndim == 3:
@@ -361,236 +362,539 @@ def dilate(img, mask, it=8):
     return img
 
 
-def paint(who, tex, eye_y, eye_l, eye_r, j_neck, face_z):
-    L = T.srgb_to_linear
-    pos = tex["pos"]
+def load_img(rel: str, size: int | None = None):
+    im = cv2.imread(str(MX / rel), cv2.IMREAD_UNCHANGED)
+    if im is None:
+        raise FileNotFoundError(MX / rel)
+    if im.ndim == 2:
+        im = im[..., None]
+    if im.shape[2] == 4:
+        im = im[..., [2, 1, 0, 3]]
+    elif im.shape[2] == 3:
+        im = im[..., ::-1]
+    im = im.astype(np.float32) / 255.0
+    if size and im.shape[0] != size:
+        im = cv2.resize(im, (size, size), interpolation=cv2.INTER_AREA)
+        if im.ndim == 2:
+            im = im[..., None]
+    return np.ascontiguousarray(im)
+
+
+def lum(c):
+    return (c[..., :3] * LUMA).sum(-1)
+
+
+def highpass(a, sigma):
+    return a - T.blur(np.ascontiguousarray(a), sigma)
+
+
+def segments_dist(px, py, pts):
+    """Distance from points (px, py) to a polyline pts [(x, y), ...]."""
+    d = np.full(px.shape, 1e9, np.float32)
+    for (ax, ay), (bx, by) in zip(pts[:-1], pts[1:]):
+        vx, vy = bx - ax, by - ay
+        t = np.clip(((px - ax) * vx + (py - ay) * vy) / (vx * vx + vy * vy + 1e-12), 0, 1)
+        d = np.minimum(d, np.hypot(px - (ax + vx * t), py - (ay + vy * t)))
+    return d
+
+
+def save_set(who, part, albedo=None, normal=None, rough=None, alpha=None):
+    if albedo is not None:
+        a = T.linear_to_srgb(albedo)
+        if alpha is not None:
+            a = np.concatenate([a, alpha[..., None]], -1)
+        T.save(OUT_T / f"{who}_{part}_albedo.png", a)
+    if normal is not None:
+        T.save(OUT_T / f"{who}_{part}_normal.png", normal)
+    if rough is not None:
+        T.save(OUT_T / f"{who}_{part}_rough.png", np.clip(rough, 0, 1))
+
+
+# ---------------------------------------------------------------------------
+# build one person
+# ---------------------------------------------------------------------------
+def build(who: str):
+    spec = SPEC[who]
+    V0, VT, faces = load_obj(MH / "base.obj")
+    V = V0.copy()
+    for name, w in spec["targets"]:
+        idx, d = load_target(name)
+        if len(idx):
+            V[idx] += d * w
+    sk = json.load(open(MH / "rigs" / "default.mhskel"))
+    raw = json.load(open(MH / "rigs" / "default_weights.mhw"))["weights"]
+    J = sk["joints"]
+    nV = len(V)
+    Wfull = {}
+    for bone, lst in raw.items():
+        items = lst.items() if isinstance(lst, dict) else lst
+        a = np.zeros(nV)
+        for vi, w in items:
+            a[int(vi)] = float(w)
+        if a.any():
+            Wfull[bone] = a
+
+    def joint(name):
+        return V[J[name]].mean(0) * SCALE
+
+    groups: dict[str, set] = {}
+    for f in faces:
+        groups.setdefault(f[2], set()).update(f[0])
+    ctx = {
+        "who": who,
+        "eye_l": V[sorted(groups["joint-l-eye"])].mean(0) * SCALE,
+        "eye_r": V[sorted(groups["joint-r-eye"])].mean(0) * SCALE,
+        "neck": joint(sk["bones"]["neck01"]["head"]),
+        "head": joint(sk["bones"]["head"]["head"]),
+        "elbow_l": joint(sk["bones"]["lowerarm01.L"]["head"]), "wrist_l": joint(sk["bones"]["wrist.L"]["head"]),
+        "elbow_r": joint(sk["bones"]["lowerarm01.R"]["head"]), "wrist_r": joint(sk["bones"]["wrist.R"]["head"]),
+        "hip": joint(sk["bones"]["pelvis.L"]["head"]),
+    }
+
+    # ---- proxies ---------------------------------------------------------------
+    parts = []
+    delete: set[int] = set()
+    for part, rel in spec["parts"]:
+        folder = MX / rel
+        name = folder.name
+        px = parse_mhclo(folder / f"{name}.mhclo")
+        z = np.load(folder / f"{name}.npz")
+        P = fit(px, V) * SCALE
+        n = len(P)
+        assert n == len(z["coord"]), (rel, n, len(z["coord"]))
+        W = proxy_weights(px, Wfull, n, folder / f"{name}.mhw")
+        parts.append({"part": part, "rel": rel, "P": P, "quads": z["fvert"].astype(np.int64),
+                      "fuv": z["fuvs"].astype(np.int64), "VT": z["texco"].astype(np.float64), "W": W})
+        delete |= px["delete"]
+        print(f"{who}: {part:7s} {rel:30s} {n:6d} verts, hides {len(px['delete'])} body verts")
+
+    # ---- the body (minus what the clothes cover) ----------------------------------
+    body_faces = [f for f in faces if f[2] == "body"]
+    used = sorted({v for f in body_faces for v in f[0]})
+    remap = -np.ones(nV, np.int64)
+    remap[used] = np.arange(len(used))
+    Pb = V[used] * SCALE
+    nb = len(Pb)
+    all_q = np.array([[remap[v] for v in f[0]] for f in body_faces], np.int64)
+    all_uv = np.array([f[1] for f in body_faces], np.int64)
+    dmask = np.zeros(nV, bool)
+    dmask[list(delete)] = True
+    keep = ~np.array([dmask[f[0]].any() for f in body_faces])
+    Wb = {b: a[used] for b, a in Wfull.items() if a[used].any()}
+    Wb = normalize_weights(Wb, nb)
+    body = {"part": "body", "P": Pb, "quads": all_q[keep], "fuv": all_uv[keep], "VT": VT, "W": Wb}
+    print(f"{who}: body {nb} verts, {keep.sum()} of {len(keep)} faces kept")
+
+    # how snug do the clothes sit? (cloth vertex -> nearest body vertex along its normal)
+    from scipy.spatial import cKDTree
+    Nb = vertex_normals(Pb, all_q)
+    tree = cKDTree(Pb)
+    for p in parts:
+        if p["part"] in ("cloth", "shoes", "hair"):
+            d, i = tree.query(p["P"])
+            sd = ((p["P"] - Pb[i]) * Nb[i]).sum(1)
+            print(f"   {p['part']}: offset from skin median {np.median(sd) * 1000:.1f} mm, "
+                  f"{(sd < -0.002).mean() * 100:.1f}% inside")
+
+    # ---- textures ---------------------------------------------------------------------
+    paint_skin(ctx, spec, body, all_q, all_uv, Wb)
+    for p in parts:
+        fn = {"cloth": paint_cloth, "shoes": paint_shoes, "hair": paint_hair, "brows": paint_brows,
+              "lashes": paint_lashes, "teeth": paint_teeth, "tongue": paint_tongue, "eyes": paint_eyes}[p["part"]]
+        fn(ctx, spec, p)
+
+    # the eye proxy carries a cornea shell mapped to the transparent disc of
+    # the eye texture: split it off as its own wet, glossy mesh
+    for p in list(parts):
+        if p["part"] == "eyes":
+            tex = load_img(spec["eye"])
+            uvc = p["VT"][p["fuv"]].mean(1)
+            hh, ww = tex.shape[:2]
+            a = tex[np.clip(((1 - uvc[:, 1]) * hh).astype(int), 0, hh - 1), np.clip((uvc[:, 0] * ww).astype(int), 0, ww - 1), 3]
+            corn = a < 0.5
+            cornea = dict(p)
+            cornea["part"] = "cornea"
+            cornea["quads"] = p["quads"][corn]
+            cornea["fuv"] = p["fuv"][corn]
+            p["quads"] = p["quads"][~corn]
+            p["fuv"] = p["fuv"][~corn]
+            parts.append(cornea)
+            print(f"{who}: cornea {corn.sum()} faces, eyeball {(~corn).sum()}")
+
+    blender_export(who, [body] + parts, sk, joint)
+
+
+# ---------------------------------------------------------------------------
+# painting
+# ---------------------------------------------------------------------------
+def neck_coords(pos, ctx):
+    """Height and arc length round the neck (0 = throat, + towards his/her
+    left, i.e. +X), for marks that wrap round it."""
+    cz = ctx["neck"][2] - 0.012
+    th = np.arctan2(pos[..., 0], pos[..., 2] - cz)
+    return pos[..., 1], th
+
+
+def paint_skin(ctx, spec, body, all_q, all_uv, W):
+    who = ctx["who"]
+    P = body["P"]
+    n = len(P)
+    N = vertex_normals(P, all_q)
+    tris, tuv = tris_of(all_q, all_uv)
+    attrs = {
+        "pos": P, "nrm": N,
+        "head": region(W, n, ("head", "jaw", "oris", "orbicularis", "levator", "risorius", "special", "oculi",
+                                "eye", "tongue", "temporalis", "mandible", "nose", "cheek")),
+        "neck": region(W, n, ("neck",)),
+        "lips": region(W, n, ("oris",)),
+        "hands": region(W, n, ("wrist", "metacarpal", "finger")),
+        "tips": region(W, n, ("finger1-3", "finger2-3", "finger3-3", "finger4-3", "finger5-3")),
+    }
+    S = 2048
+    tex = rasterize(body["VT"], tuv, tris, attrs, S)
     msk = tex["mask"]
-    n_big = fbm3(pos, 9.0, 3)
-    n_mid = fbm3(pos, 40.0, 3)
-    n_fine = fbm3(pos, 180.0, 2)
-    # ---- skin
+    pos = tex["pos"]
+    D = L(load_img(spec["skin"], S)[..., :3])
+    lm = lum(D)
+    rough = np.full(msk.shape, 0.5, np.float32)
+    lmb = T.blur(np.ascontiguousarray(lm), 0.7)
+    height = highpass(lmb, 2.0) * 0.9 + highpass(lmb, 9.0) * 0.5
+    lips = T.smoothstep(0.45, 0.85, tex["lips"])
+    front = pos[..., 2] > ctx["eye_l"][2] - 0.05
+    yy, th = neck_coords(pos, ctx)
+    neckish = T.smoothstep(0.15, 0.5, tex["neck"] + tex["head"] * 0.5)
     if who == "man":
-        skin = np.zeros(pos.shape, np.float32) + L([0.70, 0.52, 0.43])
-        skin *= (0.88 + 0.22 * n_big)[..., None]
-        skin = T.lerp(skin, L([0.66, 0.38, 0.33]), (np.clip(n_mid - 0.45, 0, 1) * 0.6)[..., None])
+        D = D * np.array([1.0, 0.975, 0.96], np.float32)
+        # tired: dark, faintly violet hollows under the eyes
+        for ep in (ctx["eye_l"], ctx["eye_r"]):
+            d = ((pos[..., 0] - ep[0]) / 0.021) ** 2 + ((pos[..., 1] - (ep[1] - 0.017)) / 0.008) ** 2
+            bag = np.exp(-d) * front
+            D = T.lerp(D, D * np.array([0.7, 0.6, 0.66], np.float32), (bag * 0.5)[..., None])
+        # sweat on the forehead and the nose
+        fh = T.smoothstep(0.02, 0.05, pos[..., 1] - ctx["eye_l"][1]) * front * T.smoothstep(0.3, 0.7, tex["head"])
+        rough = rough - 0.12 * fh - 0.08 * lips
+        # three nail scratches down the left side of the neck, fresh
+        r = 0.058
+        s = th * r
+        jaw = ctx["head"][1] - 0.012
+        sc = np.zeros(msk.shape, np.float32)
+        edge = np.zeros(msk.shape, np.float32)
+        for k in range(3):
+            pts = [(r * (0.78 + k * 0.1) + 0.004 * np.sin(k * 2.0 + t * 3.0), jaw - 0.004 - k * 0.006 - t * 0.075)
+                   for t in np.linspace(0, 1, 8)]
+            pts = [(x + 0.012 * t, y) for (x, y), t in zip(pts, np.linspace(0, 1, 8))]
+            d = segments_dist(s, yy, pts)
+            fade = np.clip(1.0 - (jaw - yy - 0.01) / 0.09, 0, 1) * (pos[..., 0] > 0.01)
+            sc = np.maximum(sc, np.exp(-(d / 0.0007) ** 2) * fade)
+            edge = np.maximum(edge, np.exp(-(d / 0.0026) ** 2) * fade)
+        sc *= neckish
+        edge *= neckish
+        D = T.lerp(D, D * np.array([1.25, 0.72, 0.7], np.float32), (edge * 0.75)[..., None])
+        D = T.lerp(D, L(np.array([0.36, 0.05, 0.05], np.float32)), (sc * 0.92)[..., None])
+        height += edge * 0.15 - sc * 0.35
+        rough = T.lerp(rough, 0.28, sc)
+        # dried blood worked into the creases of his hands
+        crease = np.clip(-highpass(lm, 3.0) * 14.0, 0, 1)
+        hb = T.smoothstep(0.3, 0.7, tex["hands"]) * T.smoothstep(0.45, 0.65, fbm3(pos, 60.0, 3))
+        D = T.lerp(D, L(np.array([0.30, 0.05, 0.04], np.float32)), (np.clip(crease * 0.9 + 0.25, 0, 1) * hb * 0.7)[..., None])
+        rough = T.lerp(rough, 0.6, hb * 0.6)
     else:
-        skin = np.zeros(pos.shape, np.float32) + L([0.74, 0.66, 0.63])
-        skin *= (0.9 + 0.15 * n_big)[..., None]
-        # the dead: grey-violet pooling on the lower / back side, blue lips and nails
-        livor = np.clip(-tex["nrm"][..., 2] * 0.6 + (0.3 - tex["nrm"][..., 1]) * 0.4, 0, 1) * (0.6 + 0.4 * n_mid)
-        skin = T.lerp(skin, L([0.48, 0.36, 0.46]), (livor * 0.55)[..., None])
-        skin = T.lerp(skin, skin * np.array([0.92, 0.95, 1.05]), 0.6)
-    # lips, cheeks
-    lips = np.clip(tex["lips"] * 1.2, 0, 1)
-    lip_col = L([0.58, 0.36, 0.33]) if who == "man" else L([0.46, 0.36, 0.43])
-    skin = T.lerp(skin, lip_col, (T.smoothstep(0.62, 0.9, lips) * 0.6)[..., None])
-    # eyebrows: two arcs above the eyes on the front of the face
-    brow = np.zeros(msk.shape, np.float32)
-    for ep in (eye_l, eye_r):
-        dx = (pos[..., 0] - ep[0]) / 0.03
-        dy = (pos[..., 1] - (ep[1] + 0.022 + 0.006 * (1 - dx * dx))) / 0.0055
-        front = pos[..., 2] > face_z - 0.06
-        brow = np.maximum(brow, np.exp(-dx * dx * dx * dx - dy * dy) * front)
-    hairy = T.smoothstep(0.35, 0.7, brow * (0.6 + 0.6 * n_fine))
-    hair_col = L([0.06, 0.045, 0.035])
-    skin = T.lerp(skin, hair_col, (hairy * 0.9)[..., None])
-    # stubble for him: jaw, chin, upper lip
-    if who == "man":
-        head = tex["head"]
-        below_nose = np.clip((eye_y - 0.045 - pos[..., 1]) / 0.02, 0, 1)
-        above_neck = np.clip((pos[..., 1] - (j_neck[1] + 0.01)) / 0.02, 0, 1)
-        beard = head * below_nose * above_neck * (1 - lips)
-        speck = (fbm3(pos, 900.0, 1) > 0.55).astype(np.float32)
-        skin = T.lerp(skin, skin * np.array([0.55, 0.55, 0.6]), (beard * (0.35 + 0.35 * speck))[..., None])
-        sc = T.smoothstep(0.2, 0.8, tex["scalp"])
-        hair = L([0.07, 0.055, 0.045]) * (0.7 + 0.6 * fbm3(pos, 600.0, 2))[..., None]
-        skin = T.lerp(skin, hair, sc[..., None])
-    else:
-        # the ligature: a thin dark line round the neck, scuffed skin around it
-        ny = j_neck[1] + 0.055 + 0.006 * np.sin(pos[..., 0] * 40.0)
-        mark = np.exp(-((pos[..., 1] - ny) / 0.0035) ** 2) * T.smoothstep(0.2, 0.6, tex["neck"])
-        bruise = np.exp(-((pos[..., 1] - ny) / 0.014) ** 2) * T.smoothstep(0.2, 0.6, tex["neck"])
-        skin = T.lerp(skin, L([0.36, 0.18, 0.26]), (bruise * 0.5)[..., None])
-        skin = T.lerp(skin, L([0.25, 0.04, 0.05]), (mark * 0.9)[..., None])
-        sc = T.smoothstep(0.2, 0.8, tex["scalp"])
-        skin = T.lerp(skin, L([0.03, 0.025, 0.02]), (T.smoothstep(0.0, 0.5, tex["scalp"]) * 0.97)[..., None])
-    albedo = skin
-    rough = np.zeros(msk.shape, np.float32) + 0.52 - 0.12 * lips
-    nh = n_fine * 0.25                                   # pore-scale height
-    # ---- clothes
-    top = T.smoothstep(0.35, 0.6, tex["top"])
-    bot = T.smoothstep(0.35, 0.6, tex["bot"])
-    shoe = T.smoothstep(0.35, 0.6, tex["shoe"])
-    folds = 0.5 + 0.5 * np.sin(pos[..., 1] * 90.0 + n_big * 12.0) * n_mid
-    weave = fbm3(pos, 1400.0, 1)
-    if who == "man":
-        shirt = L([0.74, 0.72, 0.66]) * (0.85 + 0.15 * folds)[..., None] * (0.95 + 0.08 * weave)[..., None]
-        # sweat yellowing and blood: sprayed on the front and soaked into the cuffs
-        stain = T.smoothstep(0.7, 0.78, fbm3(pos, 14.0, 4)) * (pos[..., 2] > 0.02) * 0.8
-        cuff = T.smoothstep(0.3, 0.42, tex["tfore"]) * (tex["tfore"] > 0.0) * T.smoothstep(0.55, 0.65, fbm3(pos, 30.0, 3))
-        spray = (fbm3(pos, 220.0, 2) > 0.72) * T.smoothstep(0.45, 0.6, fbm3(pos, 6.0, 2))
-        blood = np.clip(stain + cuff + spray, 0, 1)
-        shirt = T.lerp(shirt, L([0.28, 0.03, 0.025]), (blood * 0.9)[..., None])
-        trousers = L([0.075, 0.075, 0.085]) * (0.8 + 0.3 * folds)[..., None]
-        leather = L([0.03, 0.028, 0.026]) * (0.9 + 0.2 * n_mid)[..., None]
-        albedo = T.lerp(albedo, shirt, top[..., None])
-        albedo = T.lerp(albedo, trousers, bot[..., None])
-        albedo = T.lerp(albedo, leather, shoe[..., None])
-        rough = T.lerp(rough, 0.82 - 0.3 * blood, top)
-        rough = T.lerp(rough, 0.78, bot)
-        rough = T.lerp(rough, 0.3, shoe)
-        nh = nh * (1 - top - bot) + (folds * 0.6 + weave * 0.15) * (top + bot)
-    else:
-        silk = L([0.10, 0.03, 0.04]) * (0.75 + 0.35 * folds)[..., None]
-        albedo = T.lerp(albedo, silk, top[..., None])
-        rough = T.lerp(rough, 0.35, top)
-        nh = nh * (1 - top) + folds * 0.5 * top
-    # hem lines where cloth meets skin
-    cl = dilate(np.ascontiguousarray(top + bot + shoe), msk, 6)
-    edge = np.abs(cv2.Laplacian(cl, cv2.CV_32F, ksize=3)) * msk
-    albedo *= (1 - np.clip(edge * 1.5, 0, 0.5))[..., None]
-    nrm = T.normal_from_height(nh, strength=4.0, wrap=False)
-    albedo = dilate(albedo, msk)
+        # bloodless: grey, cool, waxy
+        g = lm[..., None] * np.array([1.0, 0.97, 0.93], np.float32)
+        D = T.lerp(D, g, 0.5) * 0.98
+        # lividity: blood settled into the back and the backs of the legs
+        nz = tex["nrm"][..., 2]
+        mott = T.smoothstep(0.35, 0.7, fbm3(pos, 22.0, 4))
+        liv = T.smoothstep(0.05, 0.6, -nz) * (0.45 + 0.55 * mott) * (1 - T.smoothstep(0.3, 0.7, tex["head"]))
+        D = T.lerp(D, lm[..., None] * np.array([1.05, 0.55, 0.85], np.float32), (liv * 0.65)[..., None])
+        # sunken, bruised-looking eyes; petechiae on the lids and cheeks
+        for ep in (ctx["eye_l"], ctx["eye_r"]):
+            d = ((pos[..., 0] - ep[0]) / 0.026) ** 2 + ((pos[..., 1] - (ep[1] - 0.004)) / 0.014) ** 2
+            ring = np.exp(-d) * front
+            D = T.lerp(D, D * np.array([0.7, 0.64, 0.74], np.float32), (ring * 0.4)[..., None])
+            dots = T.smoothstep(0.8, 0.86, fbm3(pos, 520.0, 2)) * np.exp(-d * 0.35) * front
+            D = T.lerp(D, L(np.array([0.6, 0.12, 0.13], np.float32)), (dots * 0.6)[..., None])
+        # cyanosed lips, blue nails
+        D = T.lerp(D, L(np.array([0.42, 0.32, 0.42], np.float32)), (lips * 0.75)[..., None])
+        D = T.lerp(D, D * np.array([0.75, 0.8, 1.15], np.float32), (T.smoothstep(0.3, 0.8, tex["tips"]) * 0.7)[..., None])
+        # the ligature: a thin deep groove, rising towards the back of the neck
+        # low on the throat in front, rising to the nape (pulled from behind)
+        y0 = ctx["neck"][1] + (ctx["head"][1] - ctx["neck"][1]) * 0.15
+        yl = y0 + 0.026 * (1 - np.cos(th)) * 0.5
+        d = np.abs(yy - yl)
+        neckish = T.smoothstep(0.3, 0.6, tex["neck"]) * (yy < ctx["head"][1] - 0.006)
+        core = np.exp(-(d / 0.0009) ** 2) * neckish
+        abr = np.exp(-(d / 0.0035) ** 2) * neckish
+        bruise = np.exp(-(d / 0.012) ** 2) * neckish
+        beads = (fbm3(pos, 900.0, 2) > 0.7) * abr
+        D = T.lerp(D, D * np.array([0.9, 0.6, 0.85], np.float32), (bruise * 0.6)[..., None])
+        D = T.lerp(D, L(np.array([0.55, 0.2, 0.22], np.float32)), (abr * 0.7)[..., None])
+        D = T.lerp(D, L(np.array([0.2, 0.03, 0.035], np.float32)), (np.maximum(core, beads * 0.8) * 0.95)[..., None])
+        height += -core * 0.6 - abr * 0.12
+        rough = T.lerp(rough, 0.32, np.maximum(core, beads))
+        # her own nails, clawing at the string: short scratches above it
+        rng = np.random.default_rng(31)
+        r = 0.052
+        s = th * r
+        nail = np.zeros(msk.shape, np.float32)
+        for _ in range(7):
+            a = rng.uniform(-0.75, 0.75)
+            top = rng.uniform(0.012, 0.03)
+            ylk = y0 + 0.026 * (1 - np.cos(a)) * 0.5
+            pts = [(a * r + rng.normal(0, 0.0015) * t, ylk + 0.002 + top * t) for t in np.linspace(0, 1, 5)]
+            nail = np.maximum(nail, np.exp(-(segments_dist(s, yy, pts) / 0.0008) ** 2))
+        nail *= neckish * front
+        D = T.lerp(D, L(np.array([0.45, 0.1, 0.1], np.float32)), (nail * 0.8)[..., None])
+        height -= nail * 0.2
+        rough = rough + 0.08 - 0.06 * lips
+    rough = T.lerp(rough, rough - 0.08, lips)
+    nrm = T.normal_from_height(height, strength=3.0, wrap=False)
+    D = dilate(D, msk)
     nrm = dilate(nrm, msk)
     rough = dilate(rough, msk)
-    return T.linear_to_srgb(albedo), nrm, np.clip(rough, 0, 1)
+    save_set(who, "skin", D, nrm, rough)
 
 
-def make_hair(P, N, scalp, eye_y, j_head, short=False):
-    """Hair as ribbons. Long (her): over the skull, then hanging down past the
-    shoulders. Short (him): strands combed back, lying on the scalp."""
-    rng = np.random.default_rng(9 if not short else 19)
-    roots = np.nonzero(scalp > 0.55)[0]
-    centre = np.array([0.0, eye_y + 0.035, j_head[2] + 0.005])
-    verts, uvs, idx = [], [], []
-    count = 900 if short else 620
-    segs = 8 if short else 14
-    for k in range(count):
-        r = roots[rng.integers(0, len(roots))]
-        p0 = P[r] + N[r] * 0.003
-        rad = np.linalg.norm(p0 - centre)
-        out = p0 - centre
-        out[1] = 0.0
-        ln = np.linalg.norm(out)
-        out = out / ln if ln > 1e-6 else np.array([0.0, 0.0, -1.0])
-        pts = []
-        if short:
-            # comb back over the skull, hugging it
-            comb = np.array([0.0, 0.25, -1.0])
-            comb = comb / np.linalg.norm(comb) + rng.normal(0, 0.15, 3)
-            L = rng.uniform(0.035, 0.07)
-            for s in range(segs):
-                t = s / (segs - 1)
-                q = p0 + comb * L * t
-                d = q - centre
-                q = centre + d / np.linalg.norm(d) * (rad + 0.004 + 0.003 * np.sin(t * np.pi))
-                pts.append(q)
-            width = rng.uniform(0.008, 0.014)
-        else:
-            length = rng.uniform(0.36, 0.5)
-            for s in range(segs):
-                t = s / (segs - 1)
-                if t < 0.3:
-                    tt = t / 0.3
-                    q = p0 + out * 0.012 * tt + np.array([0.0, -0.035 * tt, 0.0])
-                    d = q - centre
-                    q = centre + d / np.linalg.norm(d) * max(np.linalg.norm(d), rad + 0.006 * tt)
-                else:
-                    tt = (t - 0.3) / 0.7
-                    q = p0 + out * (0.012 + 0.035 * tt) + np.array([0.0, -0.035 - length * tt, 0.0])
-                    q[0] += rng.normal(0, 0.003)
-                pts.append(q)
-            width = rng.uniform(0.016, 0.03)
-        pts = np.array(pts)
-        tang = np.gradient(pts, axis=0)
-        base = len(verts)
-        for s, q in enumerate(pts):
-            nrm = q - centre
-            nrm /= np.linalg.norm(nrm) + 1e-9
-            side = np.cross(tang[s], nrm)
-            side /= np.linalg.norm(side) + 1e-9
-            w = width * (1.0 - 0.6 * s / (segs - 1))
-            verts.append(q - side * w * 0.5)
-            verts.append(q + side * w * 0.5)
-            u0 = rng.uniform(0, 0.75)
-            uvs.append([u0, s / (segs - 1)])
-            uvs.append([u0 + 0.25, s / (segs - 1)])
-        for s in range(segs - 1):
-            a = base + s * 2
-            idx.append([a, a + 1, a + 3, a + 2])
-    if not short:
-        hair_tex = np.zeros((1024, 512, 4), np.float32)
-        alpha = np.zeros((1024, 512), np.float32)
-        rr = np.random.default_rng(10)
-        for _ in range(1400):
-            x = rr.uniform(0, 512)
-            w = rr.uniform(0.6, 1.6)
-            ln = rr.uniform(0.7, 1.0)
-            a = rr.uniform(0.5, 1.0)
-            pts2 = [(x + np.sin(t * 3 + x) * 3, t * 1024 * ln) for t in np.linspace(0, 1, 30)]
-            cv2.polylines(alpha, [np.array(pts2, np.int32)], False, float(a), max(1, int(w)), cv2.LINE_AA)
-        hair_tex[..., 3] = np.clip(alpha, 0, 1)
-        hair_tex[..., :3] = np.array([0.05, 0.04, 0.035])
-        T.save(OUT_T / "hair_strands.png", hair_tex)
-    return np.array(verts), np.array(uvs), idx
+def _prep(p, size, extra=None):
+    """Rasterise a proxy's rest-pose position / normal / weights into its UVs."""
+    n = len(p["P"])
+    N = vertex_normals(p["P"], p["quads"])
+    attrs = {"pos": p["P"], "nrm": N,
+             "upper": region(p["W"], n, UPPER), "lower": region(p["W"], n, LOWER)}
+    if extra:
+        attrs.update(extra)
+    tris, tuv = tris_of(p["quads"], p["fuv"])
+    return rasterize(p["VT"], tuv, tris, attrs, size)
 
 
-def load_eyes(V0, V, groups):
-    EV, EVT, EF = load_obj(MH / "eyes" / "high-poly.obj")
-    EV = EV.copy()
-    EV[:, 1] += V0[:, 1].min()          # stored with the feet at y = 0
-    out = []
-    for side, jn in (("L", "joint-l-eye"), ("R", "joint-r-eye")):
-        gi = sorted(groups[jn])
-        j0 = V0[gi].mean(0)
-        j1 = V[gi].mean(0)
-        sel = (EV[:, 0] > 0) if side == "L" else (EV[:, 0] <= 0)
-        faces = [f for f in EF if all(sel[v] for v in f[0])]
-        used = sorted({v for f in faces for v in f[0]})
-        rm = {v: i for i, v in enumerate(used)}
-        pts = (EV[used] - j0 + j1) * 0.1
-        out.append((pts, [[rm[v] for v in f[0]] for f in faces], [f[1] for f in faces]))
-    return out, EVT
+def fore_param(P, ctx):
+    """0 at the elbow -> 1 at the wrist, per vertex (either arm)."""
+    out = np.full(len(P), -1.0)
+    for side, sgn in (("l", 1), ("r", -1)):
+        e, w = ctx["elbow_" + side], ctx["wrist_" + side]
+        d = w - e
+        t = np.clip(((P - e) @ d) / (d @ d), -1, 1.5)
+        dist = np.linalg.norm(P - (e + np.clip(t, 0, 1.2)[:, None] * d), axis=1)
+        near = (np.sign(P[:, 0]) == sgn) & (dist < 0.075)
+        out = np.where(near, t, out)
+    return out
 
 
-def bake_eye(who, eyes):
-    """Paint the eyeball by direction (the MakeHuman eye texture does not
-    survive our UV path): sclera with vessels, iris, pupil; hers clouded."""
-    (eye_list, evt) = eyes
-    pts, faces, ftex = eye_list[0]
-    c = pts.mean(0)
-    c[2] = pts[:, 2].min() + (pts[:, 2].max() - pts[:, 2].min()) * 0.5
-    d = pts - c
-    d /= np.linalg.norm(d, axis=1, keepdims=True)
-    tris, tuv = [], []
-    for f, tq in zip(faces, ftex):
-        for k in range(1, len(f) - 1):
-            tris.append([f[0], f[k], f[k + 1]])
-            tuv.append([tq[0], tq[k], tq[k + 1]])
-    tex = rasterize(evt, np.array(tuv), np.array(tris), {"dir": d, "pos": pts})
-    L = T.srgb_to_linear
-    cosang = np.clip(tex["dir"][..., 2], -1, 1)
-    ang = np.arccos(cosang)
-    n = fbm3(tex["pos"] * 40.0, 3.0, 3)
-    sclera = np.zeros(ang.shape + (3,), np.float32) + L([0.82, 0.78, 0.74])
-    veins = (fbm3(tex["pos"] * 80.0, 4.0, 3) > 0.62) * T.smoothstep(0.6, 1.4, ang)
-    sclera = T.lerp(sclera, L([0.6, 0.15, 0.12]), (veins * 0.6)[..., None])
-    sclera = T.lerp(sclera, L([0.75, 0.55, 0.5]), (T.smoothstep(0.8, 1.6, ang) * 0.5)[..., None])
-    iris_col = (L([0.32, 0.2, 0.1]) * (0.7 + 0.6 * n)[..., None])
+def paint_cloth(ctx, spec, p):
+    who = ctx["who"]
+    folder = p["rel"].split("/")[1]
+    S = 2048
+    # whole garment pieces (UV islands) are either top or bottom
+    isl = uv_islands(p["fuv"], len(p["VT"]))
+    n = len(p["P"])
+    up = region(p["W"], n, UPPER)
+    lo = region(p["W"], n, LOWER)
+    cls_v = np.zeros(n)
+    for r in np.unique(isl):
+        f = p["quads"][isl == r]
+        vv = np.unique(f)
+        is_top = up[vv].mean() > lo[vv].mean() * 1.15
+        cls_v[vv] = np.maximum(cls_v[vv], 1.0 if is_top else 0.0)
+    tex = _prep(p, S, {"top": cls_v, "fore": fore_param(p["P"], ctx)})
+    msk = tex["mask"]
+    pos = tex["pos"]
+    D = L(load_img(f"clothes/{folder}/{folder}_diffuse.png", S)[..., :3])
+    NM = load_img(f"clothes/{folder}/{folder}_normal.png", S)[..., :3]
+    AO = load_img(f"clothes/{folder}/{folder}_ao.png", S)[..., 0]
+    top = T.smoothstep(0.4, 0.6, tex["top"])
+    lm = lum(D)
+    front = T.smoothstep(-0.1, 0.4, tex["nrm"][..., 2])
+    rough = np.full(msk.shape, 0.82, np.float32)
+    if who == "man":
+        # the navy shirt becomes white: keep its folds, lose its colour
+        sel = (top > 0.5) & (msk > 0)
+        med = np.median(lm[sel]) if sel.any() else 0.05
+        sh = np.clip(T.blur(np.ascontiguousarray(lm), 1.5) / med, 0.72, 1.18) ** 0.6
+        shirt = L(np.array([0.86, 0.85, 0.8], np.float32)) * sh[..., None]
+        # sweat yellowing round the collar and under the arms
+        coll = T.smoothstep(ctx["neck"][1] - 0.03, ctx["neck"][1] + 0.01, pos[..., 1])
+        pit = np.exp(-(((np.abs(pos[..., 0]) - 0.15) / 0.05) ** 2 + ((pos[..., 1] - (ctx["neck"][1] - 0.17)) / 0.05) ** 2))
+        shirt = T.lerp(shirt, shirt * np.array([0.95, 0.88, 0.7], np.float32), (np.clip(coll + pit, 0, 1) * 0.5)[..., None])
+        jeans = T.lerp(D, lm[..., None], 0.25) * 0.7
+        D = T.lerp(jeans, shirt, top[..., None])
+        # blood: a spray across the front, the cuffs soaked, smears where he
+        # wiped his hands on his hips
+        clump = T.smoothstep(0.52, 0.66, fbm3(pos, 6.0, 3))
+        drops = T.smoothstep(0.6, 0.7, fbm3(pos, 70.0, 3)) * clump * front
+        fine = T.smoothstep(0.74, 0.8, fbm3(pos, 260.0, 2)) * clump * front * 0.8
+        t = tex["fore"]
+        soak = t + (fbm3(pos, 25.0, 4) - 0.5) * 0.7
+        cuff = T.smoothstep(0.55, 0.85, soak) * T.smoothstep(0.35, 0.55, fbm3(pos * np.array([1, 0.3, 1]), 45.0, 3) + 0.25) * top
+        hipy = ctx["hip"][1]
+        smear = np.zeros(msk.shape, np.float32)
+        for sx in (-1, 1):
+            q = pos.copy()
+            q[..., 1] *= 0.25
+            streak = T.smoothstep(0.5, 0.65, fbm3(q, 60.0, 3))
+            zone = np.exp(-(((pos[..., 0] - sx * 0.15) / 0.045) ** 2 + ((pos[..., 1] - hipy - 0.02) / 0.09) ** 2))
+            smear = np.maximum(smear, streak * zone)
+        blood = np.clip(np.maximum.reduce([drops, fine, cuff * 0.95, smear * 0.85]), 0, 1)
+        core = T.smoothstep(0.45, 0.85, T.blur(np.ascontiguousarray(blood), 2.5))
+        bcol = T.lerp(L(np.array([0.36, 0.1, 0.08], np.float32)), L(np.array([0.5, 0.03, 0.03], np.float32)), core[..., None])
+        D = T.lerp(D, bcol, (blood * 0.95)[..., None])
+        rough = T.lerp(np.full(msk.shape, 0.85, np.float32), np.full(msk.shape, 0.88, np.float32), 1 - top)
+        rough = T.lerp(rough, 0.5 - 0.2 * core, blood)
+    else:
+        # wine satin blouse, folds from the AO and the normal map (the stripes go)
+        shade = np.clip(AO, 0.25, 1) ** 0.9 * (0.72 + 0.28 * np.clip(NM[..., 2] * 2 - 1, 0, 1))
+        blouse = L(np.array([0.27, 0.05, 0.075], np.float32)) * shade[..., None]
+        sel = (top < 0.5) & (msk > 0)
+        med = np.median(lm[sel]) if sel.any() else 0.2
+        weave = np.clip(lm / med, 0.6, 1.3)
+        skirt = L(np.array([0.13, 0.13, 0.14], np.float32)) * (weave * shade)[..., None]
+        D = T.lerp(skirt, blouse, top[..., None])
+        # damp from the bath: darker, glossier patches
+        damp = T.smoothstep(0.5, 0.7, fbm3(pos, 9.0, 4)) * (pos[..., 1] < ctx["neck"][1] - 0.12)
+        D = D * (1 - 0.35 * damp)[..., None]
+        # blood run down from the neck
+        q = pos.copy()
+        q[..., 1] *= 0.12
+        run = T.smoothstep(0.6, 0.7, fbm3(q, 90.0, 2)) * front * top
+        run *= T.smoothstep(ctx["neck"][1] - 0.2, ctx["neck"][1] - 0.02, pos[..., 1]) * (np.abs(pos[..., 0]) < 0.07)
+        D = T.lerp(D, L(np.array([0.22, 0.02, 0.02], np.float32)), (run * 0.9)[..., None])
+        rough = T.lerp(np.full(msk.shape, 0.85, np.float32), np.full(msk.shape, 0.55, np.float32), top)
+        rough = rough - 0.15 * damp - 0.1 * run
+    D = D * T.lerp(1.0, np.clip(AO, 0, 1), 0.45 if who == "man" else 0.65)[..., None]
+    D = dilate(D, msk)
+    rough = dilate(rough, msk)
+    save_set(who, "cloth", D, NM, rough)
+
+
+def paint_shoes(ctx, spec, p):
+    who = ctx["who"]
+    folder = p["rel"].split("/")[1]
+    tex = _prep(p, 1024)
+    D = L(load_img(f"clothes/{folder}/{folder}_diffuse.png", 1024)[..., :3]) * 0.8
+    lm = lum(D)
+    drops = T.smoothstep(0.7, 0.76, fbm3(tex["pos"], 200.0, 2)) * (tex["pos"][..., 2] > 0.05)
+    D = T.lerp(D, L(np.array([0.2, 0.02, 0.02], np.float32)), (drops * 0.8)[..., None])
+    rough = 0.42 - highpass(lm, 3.0) * 2.0 - 0.1 * drops
+    nrm = T.normal_from_height(lm * 3.0, strength=4.0, wrap=False)
+    save_set(who, "shoes", dilate(D, tex["mask"]), dilate(nrm, tex["mask"]), dilate(rough, tex["mask"]))
+
+
+def paint_hair(ctx, spec, p):
+    who = ctx["who"]
+    folder = p["rel"].split("/")[1]
+    src = load_img(f"hair/{folder}/{folder}_diffuse.png")
+    alpha = src[..., 3]
+    D = L(src[..., :3])
+    lm = lum(D)
+    med = np.median(lm[alpha > 0.5])
+    sh = np.clip(lm / med, 0.3, 2.2)
+    hh = src.shape[0]
+    rng = np.random.default_rng(5)
+    if who == "man":
+        base = L(np.array([0.17, 0.13, 0.1], np.float32))
+        grey = L(np.array([0.62, 0.6, 0.57], np.float32))
+        # grey strands: thin streaks along the texture's strand direction
+        streak = T.fft_noise(hh, hh, 3, beta=1.2, aniso=(6.0, 0.6))
+        gm = T.smoothstep(0.62, 0.7, streak)
+        col = T.lerp(base, grey, gm[..., None] * 0.85) * sh[..., None]
+    else:
+        base = L(np.array([0.085, 0.06, 0.05], np.float32))
+        col = base * (sh ** 1.15)[..., None]
+    nsrc = MX / f"hair/{folder}/{folder}_normal.png"
+    if nsrc.exists():
+        nrm = load_img(f"hair/{folder}/{folder}_normal.png")[..., :3]
+    else:
+        nrm = T.normal_from_height(highpass(lm, 2.0) * 8.0, strength=4.0, wrap=False)
+    rough = np.clip(0.55 - highpass(lm, 2.0) * 1.5, 0.35, 0.8)
+    del rng
+    save_set(who, "hair", col, nrm, rough, alpha)
+
+
+def paint_brows(ctx, spec, p):
+    who = ctx["who"]
+    folder = p["rel"].split("/")[1]
+    src = load_img(f"eyebrows/{folder}/{folder}.png")
+    c = L(np.array([0.13, 0.1, 0.08] if who == "man" else [0.1, 0.075, 0.06], np.float32))
+    col = np.zeros(src.shape[:2] + (3,), np.float32) + c
+    save_set(who, "brows", col, None, None, np.clip(src[..., 3] * 1.1, 0, 1))
+
+
+def paint_lashes(ctx, spec, p):
+    who = ctx["who"]
+    folder = p["rel"].split("/")[1]
+    src = load_img(f"eyelashes/{folder}/{folder}.png")
+    col = np.zeros(src.shape[:2] + (3,), np.float32) + L(np.array([0.05, 0.04, 0.035], np.float32))
+    save_set(who, "lashes", col, None, None, src[..., 3])
+
+
+def paint_teeth(ctx, spec, p):
+    who = ctx["who"]
+    src = load_img("teeth/materials/teeth.png", 1024)
+    D = L(src[..., :3])
+    gum = T.smoothstep(0.05, 0.2, D[..., 0] - D[..., 2])
+    if who == "man":
+        D = T.lerp(D, D * np.array([1.0, 0.93, 0.78], np.float32), ((1 - gum) * 0.6)[..., None])
+    else:
+        D = T.lerp(D, lum(D)[..., None] * np.array([1.0, 0.8, 0.9], np.float32), (gum * 0.6)[..., None])
+    rough = 0.3 + 0.25 * gum
+    save_set(who, "teeth", D, None, rough)
+
+
+def paint_tongue(ctx, spec, p):
+    who = ctx["who"]
+    D = L(load_img("tongue/tongue01/tongue01_diffuse.png", 512)[..., :3])
     if who == "woman":
-        iris_col = T.lerp(iris_col, L([0.62, 0.64, 0.66]), 0.7)
-    col = T.lerp(sclera, iris_col, T.smoothstep(0.54, 0.5, ang)[..., None])
-    col = T.lerp(col, L([0.03, 0.025, 0.02]), (T.smoothstep(0.5, 0.47, ang) * T.smoothstep(0.42, 0.47, ang) * 0.7)[..., None])
-    pupil = T.smoothstep(0.2, 0.17, ang) if who == "man" else T.smoothstep(0.26, 0.23, ang) * 0.6
-    col = T.lerp(col, L([0.01, 0.01, 0.012]) if who == "man" else L([0.3, 0.32, 0.34]), pupil[..., None])
-    col = dilate(col, tex["mask"], 10)
-    T.save(OUT_T / f"eye_{who}.png", T.linear_to_srgb(col))
+        D = T.lerp(D, lum(D)[..., None] * np.array([0.9, 0.75, 0.95], np.float32), 0.6)
+    save_set(who, "tongue", D, None, np.full(D.shape[:2], 0.35, np.float32))
+
+
+def paint_eyes(ctx, spec, p):
+    who = ctx["who"]
+    src = load_img(spec["eye"])
+    D = L(src[..., :3])
+    alpha = src[..., 3]
+    hh = src.shape[0]
+    lm = lum(D)
+    # find the two irises: the dark blobs
+    dark = ((lm < 0.12) & (alpha > 0.5)).astype(np.uint8)
+    nl, lab, stats, cent = cv2.connectedComponentsWithStats(dark)
+    order = np.argsort(-stats[1:, cv2.CC_STAT_AREA])[:2] + 1
+    yy, xx = np.mgrid[0:hh, 0:hh].astype(np.float32)
+    rr = np.full((hh, hh), 1e9, np.float32)
+    rad = 1.0
+    for k in order:
+        cx, cy = cent[k]
+        rad = np.sqrt(stats[k, cv2.CC_STAT_AREA] / np.pi)
+        rr = np.minimum(rr, np.hypot(xx - cx, yy - cy) / rad)
+    iris = T.smoothstep(1.08, 0.96, rr)
+    pupil = T.smoothstep(0.42, 0.36, rr)
+    sclera = (1 - iris) * (alpha > 0.5)
+    redness = np.clip((D[..., 0] - D[..., 1]) * 6.0, 0, 1)
+    if who == "man":
+        # bloodshot: the vessels he has fill and spread
+        veins = T.smoothstep(0.55, 0.62, T.fft_noise(hh, hh, 41, beta=1.6)) * T.smoothstep(1.6, 2.6, rr)
+        v = np.clip(redness * 1.2 + veins * 0.35, 0, 1) * sclera * T.smoothstep(1.3, 2.2, rr)
+        D = T.lerp(D, L(np.array([0.62, 0.16, 0.14], np.float32)), (v * 0.45)[..., None])
+        D = T.lerp(D, D * np.array([1.0, 0.94, 0.86], np.float32), (sclera * 0.5)[..., None])
+    else:
+        # clouded: the cornea goes milky, the iris loses its colour
+        milk = L(np.array([0.6, 0.62, 0.64], np.float32))
+        D = T.lerp(D, milk * (0.7 + 0.3 * lm[..., None] / max(lm.max(), 1e-3)), (iris * 0.62)[..., None])
+        D = T.lerp(D, L(np.array([0.32, 0.34, 0.37], np.float32)), (pupil * 0.75)[..., None])
+        D = T.lerp(D, D * np.array([0.96, 0.95, 0.85], np.float32), (sclera * 0.6)[..., None])
+        # petechiae: pinpoint bleeds in the whites
+        rng = np.random.default_rng(12)
+        spots = np.zeros((hh, hh), np.float32)
+        ys, xs = np.nonzero(sclera > 0.5)
+        for i in rng.integers(0, len(ys), 260):
+            cv2.circle(spots, (int(xs[i]), int(ys[i])), int(rng.integers(1, 4)), float(rng.uniform(0.6, 1.0)), -1, cv2.LINE_AA)
+        D = T.lerp(D, L(np.array([0.55, 0.04, 0.05], np.float32)), (T.blur(spots, 0.7) * sclera)[..., None])
+    save_set(who, "eyes", D, None, np.where(iris > 0.5, 0.15, 0.3).astype(np.float32), alpha)
 
 
 # ---------------------------------------------------------------------------
-# Blender: mesh + armature + weights -> glb
+# Blender: meshes + armature + weights -> glb
 # ---------------------------------------------------------------------------
-def blender_export(who, P, quads, fuv, VT, W, sk, joint, hair, eyes):
+def blender_export(who, parts, sk, joint):
     import bpy
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -598,32 +902,6 @@ def blender_export(who, P, quads, fuv, VT, W, sk, joint, hair, eyes):
     def b(v):            # MakeHuman (Y up, +Z front) -> Blender (Z up, -Y front)
         return (float(v[0]), float(-v[2]), float(v[1]))
 
-    def mesh_obj(name, verts, faces, uvs_per_face, uv_src, mat_name):
-        me = bpy.data.meshes.new(name)
-        me.from_pydata([b(v) for v in verts], [], faces)
-        me.update()
-        uvl = me.uv_layers.new(name="UVMap")
-        li = 0
-        for poly, tq in zip(me.polygons, uvs_per_face):
-            for k, loop_index in enumerate(poly.loop_indices):
-                t = tq[k]
-                uvl.data[loop_index].uv = (float(uv_src[t][0]), float(uv_src[t][1])) if t >= 0 else (0.0, 0.0)
-        for poly in me.polygons:
-            poly.use_smooth = True
-        mat = bpy.data.materials.get(mat_name) or bpy.data.materials.new(mat_name)
-        me.materials.append(mat)
-        ob = bpy.data.objects.new(name, me)
-        bpy.context.collection.objects.link(ob)
-        return ob
-
-    body = mesh_obj(who, P, quads, fuv, VT, f"{who}_skin")
-    for bone, arr in W.items():
-        vg = body.vertex_groups.new(name=bone)
-        nz = np.nonzero(arr > 0.002)[0]
-        for vi in nz:
-            vg.add([int(vi)], float(arr[vi]), "REPLACE")
-
-    # armature
     arm_data = bpy.data.armatures.new(f"{who}_rig")
     arm = bpy.data.objects.new(f"{who}_rig", arm_data)
     bpy.context.collection.objects.link(arm)
@@ -633,70 +911,75 @@ def blender_export(who, P, quads, fuv, VT, W, sk, joint, hair, eyes):
     order = []
     done = set()
 
-    def visit(n):
-        if n in done:
+    def visit(nm):
+        if nm in done:
             return
-        p = bones[n]["parent"]
-        if p:
-            visit(p)
-        done.add(n)
-        order.append(n)
+        par = bones[nm]["parent"]
+        if par:
+            visit(par)
+        done.add(nm)
+        order.append(nm)
 
-    for n in bones:
-        visit(n)
-    for n in order:
-        eb = arm_data.edit_bones.new(n)
-        h = joint(bones[n]["head"])
-        t = joint(bones[n]["tail"])
+    for nm in bones:
+        visit(nm)
+    for nm in order:
+        eb = arm_data.edit_bones.new(nm)
+        h = joint(bones[nm]["head"])
+        t = joint(bones[nm]["tail"])
         if np.linalg.norm(t - h) < 1e-4:
             t = h + np.array([0.0, 0.01, 0.0])
         eb.head = b(h)
         eb.tail = b(t)
-        p = bones[n]["parent"]
-        if p:
-            eb.parent = arm_data.edit_bones[p]
+        par = bones[nm]["parent"]
+        if par:
+            eb.parent = arm_data.edit_bones[par]
     bpy.ops.object.mode_set(mode="OBJECT")
-    body.parent = arm
-    mod = body.modifiers.new("Armature", "ARMATURE")
-    mod.object = arm
 
-    # eyes, weighted to the head
-    eye_objs = []
-    (eye_list, evt) = eyes
-    for i, (pts, faces, ftex) in enumerate(eye_list):
-        eo = mesh_obj(f"{who}_eye{i}", pts, faces, ftex, evt, f"{who}_eye")
-        vg = eo.vertex_groups.new(name="head")
-        vg.add(list(range(len(pts))), 1.0, "REPLACE")
-        eo.parent = arm
-        m = eo.modifiers.new("Armature", "ARMATURE")
-        m.object = arm
-        eye_objs.append(eo)
-    if hair is not None:
-        hv, huv, hidx = hair
-        me = bpy.data.meshes.new(f"{who}_hair")
-        me.from_pydata([b(v) for v in hv], [], hidx)
+    for p in parts:
+        name = f"{who}_{p['part']}"
+        quads = p["quads"]
+        used = np.unique(quads)
+        rm = -np.ones(len(p["P"]), np.int64)
+        rm[used] = np.arange(len(used))
+        verts = p["P"][used]
+        fq = rm[quads]
+        me = bpy.data.meshes.new(name)
+        me.from_pydata([b(v) for v in verts], [], [list(map(int, f)) for f in fq])
         me.update()
         uvl = me.uv_layers.new(name="UVMap")
-        for poly in me.polygons:
-            for loop_index in poly.loop_indices:
-                vi = me.loops[loop_index].vertex_index
-                uvl.data[loop_index].uv = (float(huv[vi][0]), 1.0 - float(huv[vi][1]))
-        me.materials.append(bpy.data.materials.new(f"{who}_hair"))
-        ho = bpy.data.objects.new(f"{who}_hair", me)
-        bpy.context.collection.objects.link(ho)
-        vg = ho.vertex_groups.new(name="head")
-        vg.add(list(range(len(hv))), 1.0, "REPLACE")
-        ho.parent = arm
-        m = ho.modifiers.new("Armature", "ARMATURE")
-        m.object = arm
+        loop_uv = p["VT"][p["fuv"]].reshape(-1, 2)
+        uvl.data.foreach_set("uv", loop_uv.astype(np.float32).ravel())
+        me.polygons.foreach_set("use_smooth", np.ones(len(me.polygons), bool))
+        me.materials.append(bpy.data.materials.new(name))
+        ob = bpy.data.objects.new(name, me)
+        bpy.context.collection.objects.link(ob)
+        for bone, arr in p["W"].items():
+            a = arr[used]
+            nz = np.nonzero(a > 0.004)[0]
+            if not len(nz):
+                continue
+            vg = ob.vertex_groups.new(name=bone)
+            for vi in nz:
+                vg.add([int(vi)], float(a[vi]), "REPLACE")
+        ob.parent = arm
+        mod = ob.modifiers.new("Armature", "ARMATURE")
+        mod.object = arm
+        if p["part"] in SUBDIV:
+            sub = ob.modifiers.new("Subdivision", "SUBSURF")
+            sub.levels = 1
+            sub.render_levels = 1
+            sub.uv_smooth = "PRESERVE_BOUNDARIES"
+        print(f"  blender {name}: {len(verts)} verts, {len(fq)} faces{' (subdivided)' if p['part'] in SUBDIV else ''}")
 
     path = OUT_M / f"{who}.glb"
     bpy.ops.export_scene.gltf(filepath=str(path), export_format="GLB", export_skins=True,
-                              export_animations=False, export_yup=True, export_apply=False,
+                              export_animations=False, export_yup=True, export_apply=True,
                               export_materials="PLACEHOLDER", export_all_influences=False)
     print("wrote", path)
 
 
 if __name__ == "__main__":
+    if not (MX / ".complete").exists():
+        sys.exit("MakeHuman system assets missing: run tools/fetch_makehuman.sh first")
     for who in (sys.argv[1:] or ["man", "woman"]):
         build(who)

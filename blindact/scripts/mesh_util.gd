@@ -288,3 +288,273 @@ static func worn_step(width: float, height: float, run: float, seed: int, wear :
 		st.add_vertex(q)
 	st.generate_tangents()
 	return st.commit()
+
+
+## A surface of revolution about +Y whose footprint is a rounded rectangle
+## (superellipse with half-extents `half` and exponent `e`; e = 2 is an
+## ellipse, larger is boxier). `profile` points are (scale, y): scale 1 lands
+## on the footprint, 0 on the axis. Walk the profile up the outside and back
+## down the inside to get a basin (tub, sink, bowl); normals point away from
+## the material on both sides. Normals come from the surface itself, so there
+## is no seam where the revolution closes.
+static func lathe(profile: PackedVector2Array, half := Vector2.ONE, e := 2.0, segments := 40) -> ArrayMesh:
+	var np := profile.size()
+	var dirs: Array[Vector2] = []
+	for j in segments:
+		var t := TAU * float(j) / float(segments)
+		var c := cos(t)
+		var s := sin(t)
+		dirs.append(Vector2(half.x * signf(c) * pow(absf(c), 2.0 / e), half.y * signf(s) * pow(absf(s), 2.0 / e)))
+	var grid: Array = []
+	for i in np:
+		var row: Array[Vector3] = []
+		for j in segments:
+			row.append(Vector3(dirs[j].x * profile[i].x, profile[i].y, dirs[j].y * profile[i].x))
+		grid.append(row)
+	var arc := PackedFloat32Array([0.0])
+	for i in range(1, np):
+		arc.append(arc[i - 1] + profile[i].distance_to(profile[i - 1]))
+	var normals: Array = []
+	for i in np:
+		var row: Array[Vector3] = []
+		var i0 := maxi(i - 1, 0)
+		var i1 := mini(i + 1, np - 1)
+		var tp := profile[i1] - profile[i0]          # profile tangent (scale, y)
+		for j in segments:
+			var n: Vector3
+			if absf(profile[i].x) < 1e-4:
+				n = Vector3(0.0, -signf(tp.x), 0.0)
+			else:
+				var dth: Vector3 = grid[i][(j + 1) % segments] - grid[i][(j - 1 + segments) % segments]
+				var ds: Vector3 = grid[i1][j] - grid[i0][j]
+				n = ds.cross(dth)
+				if n.length() < 1e-9:
+					n = Vector3(0.0, -signf(tp.x), 0.0)
+			row.append(n.normalized())
+		normals.append(row)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in np - 1:
+		for j in segments:
+			var j2 := (j + 1) % segments
+			var u0 := float(j) / float(segments)
+			var u1 := float(j + 1) / float(segments)
+			var quad := [[i, j, u0], [i + 1, j, u0], [i + 1, j2, u1], [i, j2, u1]]
+			for tri: Array in [[quad[0], quad[1], quad[2]], [quad[0], quad[2], quad[3]]]:
+				var p0: Vector3 = grid[tri[0][0]][tri[0][1]]
+				var p1: Vector3 = grid[tri[1][0]][tri[1][1]]
+				var p2: Vector3 = grid[tri[2][0]][tri[2][1]]
+				var nsum: Vector3 = normals[tri[0][0]][tri[0][1]] + normals[tri[1][0]][tri[1][1]] + normals[tri[2][0]][tri[2][1]]
+				var order := [tri[0], tri[1], tri[2]]
+				# Godot's front faces wind clockwise: the cross product points into the surface
+				if (p1 - p0).cross(p2 - p0).dot(nsum) > 0.0:
+					order = [tri[0], tri[2], tri[1]]
+				for v: Array in order:
+					st.set_normal(normals[v[0]][v[1]])
+					st.set_uv(Vector2(v[2] * 3.0, arc[v[0]]))
+					st.add_vertex(grid[v[0]][v[1]])
+	st.generate_tangents()
+	return st.commit()
+
+
+static var _rb_cache := {}
+
+
+## A box with rounded edges and corners (radius r): every face is a grid
+## whose border rows are cut at equal angles round the rounding, so the
+## bevels catch the light like real edges. UVs in metres, u along the face's
+## longer side. Meshes are cached by size.
+static func rounded_box(size: Vector3, r: float, seg := 3) -> ArrayMesh:
+	var key := "%.4f,%.4f,%.4f,%.4f,%d" % [size.x, size.y, size.z, r, seg]
+	if _rb_cache.has(key):
+		return _rb_cache[key]
+	var h := size * 0.5
+	r = clampf(r, 0.0005, minf(h.x, minf(h.y, h.z)) * 0.95)
+	var inner := h - Vector3(r, r, r)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for axis in 3:
+		for sgn: float in [-1.0, 1.0]:
+			var b := (axis + 1) % 3
+			var c := (axis + 2) % 3
+			var cb := _rb_coords(inner[b], r, seg)
+			var cc := _rb_coords(inner[c], r, seg)
+			var long_b := size[b] >= size[c]
+			var pts: Array = []
+			var nrm: Array = []
+			var uvs: Array = []
+			for i in cb.size():
+				var prow: Array = []
+				var nrow: Array = []
+				var urow: Array = []
+				for j in cc.size():
+					var q := Vector3.ZERO
+					q[axis] = sgn * h[axis]
+					q[b] = cb[i]
+					q[c] = cc[j]
+					var cl := q.clamp(-inner, inner)
+					var n := (q - cl).normalized()
+					prow.append(cl + n * r)
+					nrow.append(n)
+					urow.append(Vector2(cb[i], -cc[j]) if long_b else Vector2(cc[j], -cb[i]))
+				pts.append(prow)
+				nrm.append(nrow)
+				uvs.append(urow)
+			for i in cb.size() - 1:
+				for j in cc.size() - 1:
+					var quad := [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]]
+					for tri: Array in [[quad[0], quad[1], quad[2]], [quad[0], quad[2], quad[3]]]:
+						var p0: Vector3 = pts[tri[0][0]][tri[0][1]]
+						var p1: Vector3 = pts[tri[1][0]][tri[1][1]]
+						var p2: Vector3 = pts[tri[2][0]][tri[2][1]]
+						var fn: Vector3 = nrm[tri[0][0]][tri[0][1]] + nrm[tri[1][0]][tri[1][1]] + nrm[tri[2][0]][tri[2][1]]
+						var order := tri
+						if (p1 - p0).cross(p2 - p0).dot(fn) > 0.0:
+							order = [tri[0], tri[2], tri[1]]
+						for v: Array in order:
+							st.set_normal(nrm[v[0]][v[1]])
+							st.set_uv(uvs[v[0]][v[1]])
+							st.add_vertex(pts[v[0]][v[1]])
+	st.generate_tangents()
+	var mesh := st.commit()
+	_rb_cache[key] = mesh
+	return mesh
+
+
+static func _rb_coords(inner: float, r: float, seg: int) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	for k in range(seg, 0, -1):
+		out.append(-inner - r * tan(PI * 0.25 * float(k) / float(seg)))
+	out.append(-inner)
+	out.append(inner)
+	for k in range(1, seg + 1):
+		out.append(inner + r * tan(PI * 0.25 * float(k) / float(seg)))
+	return out
+
+
+## A moulding: the 2D profile (x = out from the wall, y = up), walked with
+## the material on its left, swept along X for `length` (centred). Shading is
+## smooth across shallow profile corners and crisp across sharp ones.
+static func extrude(profile: PackedVector2Array, length: float) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var n := profile.size()
+	var segn: Array[Vector2] = []
+	for i in n - 1:
+		var t := profile[i + 1] - profile[i]
+		segn.append(Vector2(t.y, -t.x).normalized())
+	var hx := length * 0.5
+	var arc := 0.0
+	for i in n - 1:
+		var a := profile[i]
+		var b := profile[i + 1]
+		var na := segn[i]
+		var nb := segn[i]
+		if i > 0 and segn[i - 1].dot(segn[i]) > 0.7:
+			na = (segn[i - 1] + segn[i]).normalized()
+		if i < n - 2 and segn[i + 1].dot(segn[i]) > 0.7:
+			nb = (segn[i + 1] + segn[i]).normalized()
+		var sl := a.distance_to(b)
+		var v := [
+			[Vector3(-hx, a.y, a.x), Vector3(0.0, na.y, na.x), Vector2(-hx, arc)],
+			[Vector3(hx, a.y, a.x), Vector3(0.0, na.y, na.x), Vector2(hx, arc)],
+			[Vector3(hx, b.y, b.x), Vector3(0.0, nb.y, nb.x), Vector2(hx, arc + sl)],
+			[Vector3(-hx, b.y, b.x), Vector3(0.0, nb.y, nb.x), Vector2(-hx, arc + sl)]]
+		for tri: Array in [[v[0], v[1], v[2]], [v[0], v[2], v[3]]]:
+			var order := tri
+			var fn: Vector3 = tri[0][1] + tri[1][1] + tri[2][1]
+			if (tri[1][0] - tri[0][0]).cross(tri[2][0] - tri[0][0]).dot(fn) > 0.0:
+				order = [tri[0], tri[2], tri[1]]
+			for vv: Array in order:
+				st.set_normal(vv[1])
+				st.set_uv(vv[2])
+				st.add_vertex(vv[0])
+		arc += sl
+	st.generate_tangents()
+	return st.commit()
+
+
+## A dust sheet thrown over something. `top` is a Callable (x, z) -> height
+## of what is under the sheet inside the footprint |x| <= half.x, |z| <= half.y.
+## The cloth lies on it, falls down the sides in folds and spreads a little
+## on the floor; `overhang` is how much cloth lies beyond the footprint.
+static func drape(top: Callable, half: Vector2, overhang: float, res := Vector2i(56, 40), seed := 1) -> ArrayMesh:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed
+	var ph := rng.randf() * 10.0
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var nx := res.x
+	var nz := res.y
+	for i in nx + 1:
+		for j in nz + 1:
+			var u := lerpf(-half.x - overhang, half.x + overhang, float(i) / nx)
+			var v := lerpf(-half.y - overhang, half.y + overhang, float(j) / nz)
+			var ex := maxf(absf(u) - half.x, 0.0)
+			var ez := maxf(absf(v) - half.y, 0.0)
+			var cu := clampf(u, -half.x, half.x)
+			var cv := clampf(v, -half.y, half.y)
+			var o := sqrt(ex * ex + ez * ez)
+			var p: Vector3
+			if o <= 0.0:
+				var bump := 0.006 * sin(u * 23.0 + ph) * sin(v * 19.0 - ph)
+				p = Vector3(u, float(top.call(u, v)) + 0.012 + bump, v)
+			else:
+				var he := float(top.call(cu, cv))
+				var dir := Vector2(signf(u) * ex, signf(v) * ez) / o
+				var drop := minf(o, he - 0.006)
+				var spread := maxf(o - (he - 0.006), 0.0)
+				var k := drop / maxf(he, 0.01)
+				var along := cv if absf(dir.x) > absf(dir.y) else cu
+				var fold := (sin(along * 26.0 + ph) * 0.6 + sin(along * 57.0 - ph * 2.0) * 0.4) * 0.016 * k
+				var out := Vector2(cu, cv) + dir * (0.015 + 0.03 * k + spread + fold)
+				p = Vector3(out.x, he + 0.012 - drop, out.y)
+			st.set_uv(Vector2(u, v))
+			st.add_vertex(p)
+	for i in nx:
+		for j in nz:
+			var a := i * (nz + 1) + j
+			var b := (i + 1) * (nz + 1) + j
+			st.add_index(a)
+			st.add_index(b)
+			st.add_index(b + 1)
+			st.add_index(a)
+			st.add_index(b + 1)
+			st.add_index(a + 1)
+	st.generate_normals()
+	st.generate_tangents()
+	return st.commit()
+
+
+## A hanging curtain in the local XY plane (top edge at y = 0, hanging down
+## to -height), pleated along Z: `folds` pleats, deeper towards the hem.
+static func curtain(width: float, height: float, folds := 7, depth := 0.05, seed := 1) -> ArrayMesh:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed
+	var ph := rng.randf() * TAU
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var nx := folds * 8
+	var ny := 18
+	for i in nx + 1:
+		for j in ny + 1:
+			var fx := float(i) / nx
+			var fy := float(j) / ny
+			var x := (fx - 0.5) * width
+			var y := -fy * height - (0.02 * sin(fx * 9.0 + ph) * fy * fy)
+			var z := sin(fx * folds * TAU + ph) * depth * (0.55 + 0.45 * fy) + sin(fx * 31.0 + ph) * 0.006 * fy
+			st.set_uv(Vector2(x, -y))
+			st.add_vertex(Vector3(x, y, z))
+	for i in nx:
+		for j in ny:
+			var a := i * (ny + 1) + j
+			var b := (i + 1) * (ny + 1) + j
+			st.add_index(a)
+			st.add_index(b + 1)
+			st.add_index(b)
+			st.add_index(a)
+			st.add_index(a + 1)
+			st.add_index(b + 1)
+	st.generate_normals()
+	st.generate_tangents()
+	return st.commit()

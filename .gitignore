@@ -15,3 +15,5 @@ blindact/scenes/eye_test.tscn
 # realistic eye textures (unused for now; regenerate with blindact/tools/gen_eye.py)
 blindact/assets/textures/eye_*
 blindact/scenes/char_test.tscn
+# MakeHuman 1.1.1 system assets (fetch with blindact/tools/fetch_makehuman.sh)
+blindact/art/makehuman/mh111/

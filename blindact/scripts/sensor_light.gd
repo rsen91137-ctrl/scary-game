@@ -50,14 +50,14 @@ func _ready() -> void:
 	sm.height = 0.09
 	bulb.mesh = sm
 	bulb_mat = StandardMaterial3D.new()
-	bulb_mat.albedo_color = Color(0.9, 0.85, 0.75, 0.8)
+	bulb_mat.albedo_color = Color(0.85, 0.9, 0.95, 0.8)
 	bulb_mat.emission_enabled = true
-	bulb_mat.emission = Color(1.0, 0.62, 0.3)
+	bulb_mat.emission = Color(0.72, 0.88, 1.0)
 	bulb_mat.emission_energy_multiplier = 0.0
 	bulb.material_override = bulb_mat
 	add_child(bulb)
 	light = OmniLight3D.new()
-	light.light_color = Color(1.0, 0.66, 0.38)
+	light.light_color = Color(0.74, 0.88, 1.0)
 	light.omni_range = 7.5
 	light.omni_attenuation = 1.4
 	light.shadow_enabled = true

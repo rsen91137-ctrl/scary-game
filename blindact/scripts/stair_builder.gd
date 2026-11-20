@@ -26,6 +26,7 @@ var puddles: Array[ShaderMaterial] = []
 var _mats := {}
 var _decal_tex := {}
 var _floor_numbers := ["3", "4", "5"]
+var her_floor := 1                         # the floor whose left door is hers (playable stairs)
 
 
 func rise() -> float:
@@ -577,13 +578,18 @@ func add_knock_target() -> void:
 	a.add_child(cs)
 	a.set_meta("interact", "ACT_KNOCK")
 	a.set_meta("id", "her_door")
-	a.position = Vector3(-W + 0.2, H + 1.0, -1.0)
+	a.position = Vector3(-W + 0.2, H * her_floor + 1.0, -1.0)
 	add_child(a)
 
 
 func knock_pos() -> Vector3:
-	return to_global(Vector3(-W + 0.05, H + 1.2, -1.0))
+	return to_global(Vector3(-W + 0.05, H * her_floor + 1.2, -1.0))
 
 
 func her_hinge() -> Node3D:
-	return floors[1].get_node("DoorL/Hinge")
+	return floors[her_floor].get_node("DoorL/Hinge")
+
+
+## Where a neighbour's door is (the right-hand door of floor k), for sounds.
+func neighbour_door(k: int) -> Vector3:
+	return to_global(Vector3(W - 0.05, H * k + 1.2, -1.0))

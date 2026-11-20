@@ -28,6 +28,7 @@ uniform float aberration = 0.0012;
 uniform float fade = 0.0;
 uniform float brightness = 1.0;
 uniform float desaturate = 0.0;
+uniform float cold = 0.0;                  // drain warm hues, push shadows to blue-green
 uniform float time_s = 0.0;
 
 float hash(vec2 p) {
@@ -112,10 +113,10 @@ void fragment() {
 	vec3 soft = textureLod(screen_tex, uv, 2.0).rgb;
 	col = mix(col, soft, smoothstep(0.14, 0.55, r2) * 0.3);
 
-	// sunglasses: darker, flatter, a cold greenish-brown cast, darker corners
+	// sunglasses: darker, flatter, a cold blue-green cast, darker corners
 	if (sunglasses > 0.001) {
 		float lum = dot(col, vec3(0.299, 0.587, 0.114));
-		vec3 lens = mix(col, vec3(lum), 0.28) * vec3(0.86, 0.9, 0.82);
+		vec3 lens = mix(col, vec3(lum), 0.3) * vec3(0.8, 0.9, 0.96);
 		lens *= 0.48;
 		lens = lens * lens * 1.6 + lens * 0.2;   // crush the shadows
 		float frame = smoothstep(0.42, 0.95, length(ca * vec2(0.82, 1.05)));
@@ -125,6 +126,13 @@ void fragment() {
 
 	float lum0 = dot(col, vec3(0.299, 0.587, 0.114));
 	col = mix(col, vec3(lum0), desaturate);
+	if (cold > 0.001) {
+		// warm hues lose their colour, the shadows sink into blue-green
+		float warm = clamp((col.r - col.b) * 3.0, 0.0, 1.0);
+		vec3 c2 = mix(col, vec3(lum0), 0.25 + 0.45 * warm);
+		c2 *= mix(vec3(0.8, 0.94, 1.08), vec3(0.95, 1.0, 1.04), smoothstep(0.0, 0.45, lum0));
+		col = mix(col, c2, cold);
+	}
 
 	// vignette, tightened by the heartbeat
 	float vr = length(ca * vec2(0.92, 1.0));
