@@ -19,8 +19,15 @@ def edit(p: Path, subs):
     p.write_text(s)
 
 
+# 2048 only where the camera gets close; everything else is capped at 1024
+FULL = ("damask_albedo", "damask_normal", "herring_albedo", "herring_normal", "skin_albedo", "skin_normal",
+        "cloth_albedo", "cloth_normal", "hair_albedo")
+
+
 for p in (ROOT / "assets" / "textures").rglob("*.png.import"):
     normal = "_normal" in p.name
+    limit = 0 if any(k in p.name for k in FULL) else 1024
+    edit(p, [(r"^process/size_limit=\d+", "process/size_limit=%d" % limit)])
     edit(p, [(r"^compress/mode=\d", "compress/mode=2"),
              (r"^mipmaps/generate=\w+", "mipmaps/generate=true"),
              (r"^compress/high_quality=\w+", "compress/high_quality=%s" % ("false" if normal else "true")),

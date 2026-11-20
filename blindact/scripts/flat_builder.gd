@@ -372,7 +372,7 @@ func _table_lamp(parent: Node3D, lname: String, pos: Vector3, energy: float) -> 
 
 ## A standard lamp: weighted base, brass pole, a pleated shade that throws
 ## its light up and down (the shade casts shadows, so the walls get pools).
-func _standard_lamp(parent: Node3D, lname: String, pos: Vector3, energy: float) -> void:
+func _standard_lamp(parent: Node3D, lname: String, pos: Vector3, energy: float, shadow := true) -> void:
 	var n := Node3D.new()
 	n.position = pos
 	parent.add_child(n)
@@ -381,7 +381,7 @@ func _standard_lamp(parent: Node3D, lname: String, pos: Vector3, energy: float) 
 	_lathe(n, PackedVector2Array([Vector2(1.0, 0.06), Vector2(1.0, 1.42), Vector2(0.0, 1.42)]), Vector2(0.012, 0.012), 2.0, Vector3.ZERO, _m.brass, 10)
 	var shade := _lathe(n, PackedVector2Array([Vector2(1.0, 1.3), Vector2(0.62, 1.58)]), Vector2(0.24, 0.24), 2.0, Vector3.ZERO, _shade_mat(), 28)
 	shade.name = "Shade"
-	_lamp(n, lname, Vector3(0.0, 1.46, 0.0), COLD, energy, 5.0)
+	_lamp(n, lname, Vector3(0.0, 1.46, 0.0), COLD, energy, 5.0, shadow)
 
 
 ## A wall sconce: brass plate and arm, a small cone shade pointing up.
@@ -392,7 +392,7 @@ func _sconce(parent: Node3D, lname: String, pos: Vector3, energy: float) -> void
 	_solid(n, Vector3(0.08, 0.14, 0.012), Vector3(0, 0, 0.006), _m.brass, 0.0, false)
 	_solid(n, Vector3(0.012, 0.012, 0.14), Vector3(0, -0.02, 0.07), _m.brass, 0.0, false)
 	_lathe(n, PackedVector2Array([Vector2(0.45, -0.02), Vector2(1.0, 0.12)]), Vector2(0.075, 0.075), 2.0, Vector3(0, 0.0, 0.14), _shade_mat(), 20)
-	_lamp(n, lname, Vector3(0.0, 0.05, 0.14), COLD, energy, 3.5)
+	_lamp(n, lname, Vector3(0.0, 0.05, 0.14), COLD, energy, 3.5, false)
 
 
 func _door(parent: Node3D, id: String, hinge_pos: Vector3, width: float, rot_y: float, closed_angle := 0.0, trim := true, tall := 2.05) -> Node3D:
@@ -475,7 +475,7 @@ func _living() -> void:
 	_table_lamp(r, "piano_lamp", Vector3(x0 + 0.33, 1.273, 1.62), 1.0)
 	# pools of cold light: standard lamps, two sconces, the street through the rain
 	_standard_lamp(r, "arm_lamp", Vector3(-1.4, 0.0, 4.2), 0.7)
-	_standard_lamp(r, "floor_lamp", Vector3(-1.05, 0.0, 0.42), 0.4)
+	_standard_lamp(r, "floor_lamp", Vector3(-1.05, 0.0, 0.42), 0.4, false)
 	_sconce(r, "sconce_a", Vector3(-1.35, 1.92, 0.08), 0.22)
 	_sconce(r, "sconce_b", Vector3(-4.6, 1.92, 0.08), 0.22)
 	var street := SpotLight3D.new()
@@ -513,9 +513,9 @@ func _living() -> void:
 	Props.picture(r, _m, "painting", Vector2(0.56, 0.42), Vector3(-2.75, 1.87, 0.09), 0.0)
 	Props.picture(r, _m, "photo_her", Vector2(0.5, 0.48), Vector3(-3.6, 1.75, 0.09), 0.0)
 	# a side table with the landline by the doorway
-	Props.pedestal_table(r, _m, Vector3(-1.0, 0.0, 3.8))
-	Props.rotary_phone(r, _m, Vector3(-1.0, 0.75, 3.8), -PI * 0.5)
-	_interact(r, "flat_phone", "ACT_PHONE", Vector3(-1.0, 0.85, 3.8), Vector3(0.4, 0.3, 0.4))
+	Props.pedestal_table(r, _m, Vector3(-1.0, 0.0, 3.58))
+	Props.rotary_phone(r, _m, Vector3(-1.0, 0.75, 3.58), -PI * 0.5)
+	_interact(r, "flat_phone", "ACT_PHONE", Vector3(-1.0, 0.85, 3.58), Vector3(0.4, 0.3, 0.4))
 
 
 ## Window frame in a wall: jambs, head, a mullion and transom, and a sill on
@@ -657,6 +657,24 @@ func _hallway() -> void:
 	spots.blood_pool = Vector3(0.0, 0.0, 3.25)
 
 
+## A decal pressed onto a surface whose outward normal is `normal`.
+func _decal(parent: Node3D, tex: String, pos: Vector3, size: Vector3, normal: Vector3, tint := Color.WHITE, spin := 0.0) -> Decal:
+	var d := Decal.new()
+	var p := "res://assets/textures/decals/%s.png" % tex
+	if ResourceLoader.exists(p):
+		d.texture_albedo = load(p)
+	d.modulate = tint
+	d.size = size
+	parent.add_child(d)
+	d.position = pos
+	# decals project along their local -Y: point that into the surface
+	var up := normal.normalized()
+	var ref := Vector3.FORWARD if absf(up.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT
+	var side := up.cross(ref).normalized()
+	d.basis = Basis(side, up, side.cross(up)) * Basis(Vector3.UP, spin)
+	return d
+
+
 ## A bulb hanging from the ceiling on its flex.
 func _bare_bulb(parent: Node3D, lname: String, ceiling_pos: Vector3, col: Color, energy: float) -> void:
 	var n := Props.node(parent, ceiling_pos)
@@ -793,7 +811,7 @@ func _bedroom() -> void:
 	# the bed, the blanket thrown back; a nightstand; a radiator
 	Props.bed(r, _m, Vector3(-1.4, 0.0, 8.6), PI)
 	Props.nightstand(r, _m, Vector3(-0.3, 0.0, 9.5), PI)
-	Props.radiator(r, _m, Vector3(-2.24, 0.0, 7.4), PI * 0.5, 8)
+	Props.radiator(r, _m, Vector3(-2.24, 0.0, 7.33), PI * 0.5, 8)
 	# wardrobe (hide inside): carcass, cornice, plinth, panelled doors
 	_rsolid(r, Vector3(0.62, 2.1, 0.06), Vector3(2.05, 1.05, 6.9), _m.wood)
 	_rsolid(r, Vector3(0.62, 2.1, 0.06), Vector3(2.05, 1.05, 8.1), _m.wood)
@@ -1037,6 +1055,17 @@ func _dress() -> void:
 	dq.material = dm
 	dust.draw_pass_1 = dq
 	liv.add_child(dust)
+	# handprints by the bathroom door, one smeared lower down; in the
+	# bathroom a hand on the tiles over the tub and a smear on the floor;
+	# black mould spreading from the corner by the living-room window
+	var bath: Node3D = get_node("Bath")
+	var blood := Color(0.32, 0.02, 0.025)
+	_decal(hall, "handprint", Vector3(0.57, 1.15, 3.55), Vector3(0.16, 0.12, 0.2), Vector3.LEFT, blood, 0.3)
+	_decal(hall, "handprint", Vector3(0.57, 0.62, 3.42), Vector3(0.2, 0.12, 0.3), Vector3.LEFT, blood * 0.8, 1.1)
+	_decal(bath, "handprint", Vector3(2.35, 1.0, 5.72), Vector3(0.16, 0.12, 0.2), Vector3.FORWARD, blood, -0.4)
+	_decal(bath, "stain2", Vector3(1.55, 0.0, 4.85), Vector3(0.7, 0.2, 0.45), Vector3.UP, blood, 0.6)
+	_decal(liv, "mold", Vector3(-4.85, 2.45, 4.5), Vector3(0.9, 0.25, 0.7), Vector3.FORWARD, Color(0.05, 0.07, 0.05))
+	_decal(liv, "mold", Vector3(-5.1, 2.5, 4.2), Vector3(0.7, 0.25, 0.8), Vector3.RIGHT, Color(0.05, 0.07, 0.05), 1.2)
 	# drag marks down the hall, from the bathroom door
 	for i in 7:
 		var d := Decal.new()
