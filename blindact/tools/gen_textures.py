@@ -209,6 +209,117 @@ def terrazzo():
 ALL = {"concrete": concrete, "plaster": plaster, "peel": peel, "brick": brick,
        "paint_green": paint_green, "rust": rust, "wood": wood, "terrazzo": terrazzo}
 
+
+def wallpaper():
+    """Faded damask wallpaper: a repeating ornament, sun-bleached, water-
+    stained, the strips' seams lifting and dark with grime."""
+    yy, xx = np.mgrid[0:N, 0:N].astype(np.float32) / N
+    # damask motif: two lattices of mirrored "flame" lobes
+    u = (xx * 4.0) % 1.0
+    v = (yy * 3.0) % 1.0
+    du = np.abs(u - 0.5)
+    lobe = np.exp(-((du * 2.2) ** 2 + ((v - 0.45) * 1.3) ** 2) * 8.0) * (0.5 + 0.5 * np.cos(v * 12.0 + du * 9.0))
+    u2 = (xx * 4.0 + 0.5) % 1.0
+    v2 = (yy * 3.0 + 0.5) % 1.0
+    du2 = np.abs(u2 - 0.5)
+    lobe2 = np.exp(-((du2 * 3.0) ** 2 + ((v2 - 0.5) * 2.0) ** 2) * 10.0)
+    motif = np.clip(lobe + lobe2 * 0.7, 0, 1)
+    motif = T.smoothstep(0.25, 0.55, motif)
+    fine = T.fft_noise(N, N, 81, beta=1.0)
+    mid = T.fft_noise(N, N, 82, beta=2.4)
+    base = L([0.42, 0.36, 0.27])
+    ink = L([0.30, 0.22, 0.17])
+    col = T.lerp(np.zeros((N, N, 3), np.float32) + base, ink, (motif * 0.65)[..., None])
+    col *= (0.8 + 0.3 * mid + 0.06 * fine)[..., None]
+    # strip seams every quarter, lifting and grimy
+    seam = np.exp(-(((xx * 4.0) % 1.0 - 0.0) * N / 4.0 / 2.5) ** 2) + np.exp(-((1.0 - (xx * 4.0) % 1.0) * N / 4.0 / 2.5) ** 2)
+    col *= (1 - 0.35 * np.clip(seam, 0, 1))[..., None]
+    stain = T.fft_noise(N, N, 83, beta=2.8)
+    ring = np.exp(-np.square((stain - 0.7) / 0.015)) * 0.8 + T.smoothstep(0.66, 0.8, stain) * 0.5
+    col = T.lerp(col, L([0.25, 0.18, 0.1]), (np.clip(ring, 0, 1) * 0.6)[..., None])
+    runs = T.fft_noise(N, N, 84, beta=1.8, aniso=(6, 0.4))
+    col = T.lerp(col, L([0.18, 0.15, 0.11]), (T.smoothstep(0.6, 0.85, runs) * 0.4)[..., None])
+    h = 0.15 * motif + 0.2 * mid + 0.1 * fine + 0.4 * np.clip(seam, 0, 1)
+    rough = 0.82 + 0.1 * fine
+    save_set("wallpaper", col, T.blur_wrap(h, 0.8), rough, 1.5)
+
+
+def parquet():
+    """Herringbone-ish oak parquet, scuffed, the varnish worn grey in paths."""
+    r = T.rng(91)
+    col = np.zeros((N, N, 3), np.float32)
+    h = np.zeros((N, N), np.float32)
+    plank_w, plank_l = 64, 320
+    grain = T.fft_noise(N, N, 92, beta=1.4, aniso=(0.2, 6))
+    grain2 = T.fft_noise(N, N, 93, beta=1.4, aniso=(6, 0.2))
+    for row in range(N // plank_w):
+        off = r.integers(0, plank_l)
+        y0 = row * plank_w
+        x = -off
+        while x < N:
+            x0, x1 = max(x, 0), min(x + plank_l, N)
+            tone = r.uniform(0.75, 1.15)
+            hue = L([0.36, 0.22, 0.12]) * tone
+            if x1 > x0:
+                col[y0 + 1:y0 + plank_w - 1, x0 + 1:x1 - 1] = hue
+                h[y0 + 1:y0 + plank_w - 1, x0 + 1:x1 - 1] = 0.6
+            x += plank_l
+    col *= (0.75 + 0.45 * grain2)[..., None]
+    wear = T.smoothstep(0.45, 0.8, T.fft_noise(N, N, 94, beta=2.6))
+    col = T.lerp(col, L([0.33, 0.29, 0.24]), (wear * 0.5)[..., None])
+    scratch = (T.fft_noise(N, N, 95, beta=0.6, aniso=(8, 1)) > 0.78) * 0.4
+    col *= (1 - scratch * 0.3)[..., None]
+    h = T.blur_wrap(h, 1.0) + 0.1 * grain2
+    rough = 0.45 + 0.4 * wear
+    save_set("parquet", col, h, rough, 3.0)
+
+
+def tiles():
+    """Small white wall tiles, crazed glaze, grey-black grout, rust runs."""
+    n_t = 12
+    ts = N // n_t
+    yy, xx = np.mgrid[0:N, 0:N]
+    gx = (xx % ts)
+    gy = (yy % ts)
+    grout = ((gx < 3) | (gy < 3)).astype(np.float32)
+    grout = T.blur_wrap(grout, 0.8)
+    r = T.rng(101)
+    tone = np.zeros((N, N), np.float32)
+    for i in range(n_t):
+        for j in range(n_t):
+            tone[j * ts:(j + 1) * ts, i * ts:(i + 1) * ts] = r.uniform(0.85, 1.0)
+    craze = cracks(N, 102, 30, 0.8)
+    col = np.zeros((N, N, 3), np.float32) + L([0.78, 0.78, 0.74])
+    col *= tone[..., None]
+    col = T.lerp(col, L([0.10, 0.10, 0.09]), (grout * 0.85)[..., None])
+    col *= (1 - 0.3 * craze)[..., None]
+    rust = T.smoothstep(0.62, 0.85, T.fft_noise(N, N, 103, beta=1.8, aniso=(6, 0.4)))
+    col = T.lerp(col, L([0.42, 0.22, 0.1]), (rust * 0.55)[..., None])
+    mold = T.smoothstep(0.7, 0.85, T.fft_noise(N, N, 104, beta=2.0)) * grout
+    col = T.lerp(col, L([0.05, 0.07, 0.04]), (mold * 0.8)[..., None])
+    h = (1 - grout) * 0.6 - 0.2 * craze
+    rough = 0.15 + 0.7 * grout + 0.3 * rust
+    save_set("tiles", col, T.blur_wrap(h, 0.6), rough, 4.0)
+
+
+def fabric():
+    """Worn velvet upholstery: weave, pile direction, stains."""
+    yy, xx = np.mgrid[0:N, 0:N]
+    weave = (np.sin(xx * 2 * np.pi / 6) * np.sin(yy * 2 * np.pi / 6) * 0.5 + 0.5)
+    mid = T.fft_noise(N, N, 111, beta=2.2)
+    pile = T.fft_noise(N, N, 112, beta=1.6, aniso=(1, 3))
+    col = np.zeros((N, N, 3), np.float32) + L([0.22, 0.07, 0.07])
+    col *= (0.7 + 0.35 * pile + 0.2 * mid)[..., None]
+    stain = T.smoothstep(0.65, 0.8, T.fft_noise(N, N, 113, beta=2.6))
+    col = T.lerp(col, L([0.12, 0.08, 0.06]), (stain * 0.6)[..., None])
+    h = 0.3 * weave + 0.3 * pile
+    rough = 0.9 - 0.15 * pile
+    save_set("fabric", col, T.blur_wrap(h, 0.5), rough, 2.0)
+
+
+ALL.update({"wallpaper": wallpaper, "parquet": parquet, "tiles": tiles, "fabric": fabric})
+
+
 if __name__ == "__main__":
     for nm in sys.argv[1:] or list(ALL):
         ALL[nm]()

@@ -169,5 +169,48 @@ def main():
     print("voices written to", OUT)
 
 
+
+def talk(seed: int, voice: str, pitch: int, speed: int, words: int) -> np.ndarray:
+    """Speech-like nonsense: the rhythm and tone of talking, no words (the
+    subtitles carry the words, in any language)."""
+    rng = np.random.default_rng(seed)
+    syl = ["ma", "no", "di", "ra", "hu", "ke", "lo", "sa", "ve", "mi", "do", "ru", "ne", "ta", "go", "ha", "an", "el", "or", "us"]
+    text = " ".join("".join(rng.choice(syl, rng.integers(1, 4))) for _ in range(words))
+    x = espeak(text, voice, speed, pitch)
+    return x
+
+
+def man_line(seed: int, words: int) -> np.ndarray:
+    x = talk(seed, "mb-us2", 18, 130, words)
+    b, a = signal.butter(2, [90 / (SR / 2), 4200 / (SR / 2)], "band")
+    x = signal.lfilter(b, a, x)
+    x = np.tanh(x * 1.5) * 0.8                 # a heavy, close voice
+    x = room(x, seed, 0.5, 0.12)
+    return finish(x, hp=80, lp=5000)
+
+
+def phone_line(seed: int, words: int) -> np.ndarray:
+    x = talk(seed, "en+f2", 55, 150, words)
+    b, a = signal.butter(4, [320 / (SR / 2), 3200 / (SR / 2)], "band")
+    x = signal.lfilter(b, a, x)
+    x = np.tanh(x * 3.0) * 0.6
+    rng = np.random.default_rng(seed)
+    hiss = signal.lfilter(*signal.butter(2, [800 / (SR / 2), 5000 / (SR / 2)], "band"), rng.standard_normal(len(x))) * 0.02
+    return finish(x + hiss, hp=300, lp=3400)
+
+
+def main_talk():
+    for i in range(1, 9):
+        write_ogg(OUT / f"man_talk_{i}.ogg", man_line(400 + i, 4 + i))
+    for i in range(1, 7):
+        write_ogg(OUT / f"phone_woman_{i}.ogg", phone_line(500 + i, 5 + i))
+    print("talk written")
+
+
 if __name__ == "__main__":
-    main()
+    import sys
+    if "talk" in sys.argv:
+        main_talk()
+    else:
+        main()
+        main_talk()

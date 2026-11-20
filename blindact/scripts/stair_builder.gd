@@ -228,9 +228,16 @@ func _build_floor(f: Node3D, k: int) -> void:
 	# walls (the far wall has the window opening at the half landing)
 	var hz := Z1 - Z0 + 2 * WALL_T
 	var zc := (Z0 + Z1) * 0.5
-	var wl := _box(f, Vector3(WALL_T, H, hz), Vector3(-W - WALL_T * 0.5, H * 0.5, zc), _mats.wall)
-	wl.set_meta("wall", true)
-	_box(f, Vector3(WALL_T, H, hz), Vector3(W + WALL_T * 0.5, H * 0.5, zc), _mats.wall)
+	# side walls with real door openings (z in [-1.46, -0.54], up to 2.15)
+	for side: float in [-1.0, 1.0]:
+		var xw := side * (W + WALL_T * 0.5)
+		var za := Z0 - WALL_T
+		var zb := Z1 + WALL_T
+		_box(f, Vector3(WALL_T, H, -1.46 - za), Vector3(xw, H * 0.5, (za - 1.46) * 0.5), _mats.wall)
+		_box(f, Vector3(WALL_T, H, zb + 0.54), Vector3(xw, H * 0.5, (zb - 0.54) * 0.5), _mats.wall)
+		_box(f, Vector3(WALL_T, H - 2.15, 0.92), Vector3(xw, (H + 2.15) * 0.5, -1.0), _mats.wall)
+		# the flat behind the door: just darkness
+		_box(f, Vector3(1.6, 2.2, 1.4), Vector3(side * (W + WALL_T + 0.8), 1.1, -1.0), _mats.dark)
 	_box(f, Vector3(2 * W, H, WALL_T), Vector3(0, H * 0.5, Z0 - WALL_T * 0.5), _mats.wall)
 	# the window must stay inside this floor's slice of the far wall
 	var wy0 := H * 0.5 + 0.55
@@ -385,8 +392,7 @@ func _build_door(f: Node3D, side: float, zc: float, name: String) -> void:
 	peep.rotation.z = PI * 0.5
 	peep.position = Vector3(-side * 0.03, 1.55, 0.46)
 	hinge.add_child(peep)
-	# darkness behind (seen when the door is ajar)
-	_box(d, Vector3(0.3, 2.06, 0.92), Vector3(x + side * 0.18, 1.03, zc), _mats.dark)
+
 
 
 # ---------------------------------------------------------------------------
@@ -524,3 +530,60 @@ func _decal(parent: Node3D, name: String, pos: Vector3, normal: Vector3, size: f
 ## down a floor so that what he sees doesn't change).
 func copy_floor(dst: int, src_seed: int, number: String) -> void:
 	configure(dst, src_seed, number)
+
+
+# ---------------------------------------------------------------------------
+# for the playable stairs (the game): colliders and her door
+# ---------------------------------------------------------------------------
+func _col_box(parent: Node3D, size: Vector3, pos: Vector3, rot_x := 0.0) -> void:
+	var sb := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = size
+	cs.shape = bs
+	sb.add_child(cs)
+	sb.position = pos
+	sb.rotation.x = rot_x
+	parent.add_child(sb)
+
+
+func add_colliders() -> void:
+	var fw := W - GAP
+	var run := ZH - ZL
+	var slope_len := sqrt(run * run + pow(H * 0.5, 2.0)) + 0.4
+	var ang := atan2(H * 0.5, run)
+	for k in floors.size():
+		var f := floors[k]
+		_col_box(f, Vector3(2 * W, 0.2, ZL - Z0 + 0.1), Vector3(0, -0.1, (Z0 + ZL) * 0.5))
+		_col_box(f, Vector3(2 * W, 0.2, Z1 - ZH + 0.1), Vector3(0, H * 0.5 - 0.1, (ZH + Z1) * 0.5))
+		_col_box(f, Vector3(fw, 0.1, slope_len), Vector3(-GAP - fw * 0.5, H * 0.25 + 0.03, (ZL + ZH) * 0.5), -ang)
+		_col_box(f, Vector3(fw, 0.1, slope_len), Vector3(GAP + fw * 0.5, H * 0.75 + 0.03, (ZL + ZH) * 0.5), ang)
+		# the well between the flights, and the walls
+		_col_box(f, Vector3(GAP * 2.0, H, ZH - ZL), Vector3(0, H * 0.5, (ZL + ZH) * 0.5))
+		_col_box(f, Vector3(0.3, H, Z1 - Z0 + 0.6), Vector3(-W - 0.15, H * 0.5, (Z0 + Z1) * 0.5))
+		_col_box(f, Vector3(0.3, H, Z1 - Z0 + 0.6), Vector3(W + 0.15, H * 0.5, (Z0 + Z1) * 0.5))
+		_col_box(f, Vector3(2 * W, H, 0.3), Vector3(0, H * 0.5, Z0 - 0.15))
+		_col_box(f, Vector3(2 * W, H, 0.3), Vector3(0, H * 0.5, Z1 + 0.15))
+
+
+func add_knock_target() -> void:
+	var a := Area3D.new()
+	a.collision_layer = 2
+	a.collision_mask = 0
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(0.5, 2.0, 1.0)
+	cs.shape = bs
+	a.add_child(cs)
+	a.set_meta("interact", "ACT_KNOCK")
+	a.set_meta("id", "her_door")
+	a.position = Vector3(-W + 0.2, H + 1.0, -1.0)
+	add_child(a)
+
+
+func knock_pos() -> Vector3:
+	return to_global(Vector3(-W + 0.05, H + 1.2, -1.0))
+
+
+func her_hinge() -> Node3D:
+	return floors[1].get_node("DoorL/Hinge")

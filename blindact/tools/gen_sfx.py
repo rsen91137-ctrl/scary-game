@@ -303,6 +303,145 @@ ALL.update({"cane_tap": cane_tap, "relay_click": relay_click, "thunder": thunder
             "door_creak": door_creak, "door_slam": door_slam, "drip": drip})
 
 
+def phone_ring():
+    """An old landline bell: two clappered bells, ring-ring ... pause."""
+    n = int(4.0 * SR)
+    t = np.arange(n) / SR
+    x = np.zeros(n)
+    rng = np.random.default_rng(20)
+    for start in (0.0, 0.55):
+        for k in range(int(0.38 * 20)):
+            tt = start + k / 20.0
+            i = int(tt * SR)
+            ln = int(0.25 * SR)
+            if i + ln >= n:
+                continue
+            tl = np.arange(ln) / SR
+            ring = (np.sin(2 * np.pi * 1250 * tl) + 0.6 * np.sin(2 * np.pi * 1610 * tl) + 0.3 * np.sin(2 * np.pi * 2830 * tl)) * np.exp(-tl / 0.09)
+            x[i:i + ln] += ring * 0.3
+    x += hp(rng.standard_normal(n), 2000) * 0.002
+    write_ogg("phone_ring", x)
+
+
+def phone_click():
+    rng = np.random.default_rng(21)
+    n = int(0.4 * SR)
+    t = np.arange(n) / SR
+    x = lp(rng.standard_normal(n), 3000) * np.exp(-t / 0.01) + np.sin(2 * np.pi * 180 * t) * np.exp(-t / 0.03) * 0.5
+    write_ogg("phone_click", x, peak_to=0.6)
+    tone = np.sin(2 * np.pi * 425 * np.arange(int(1.5 * SR)) / SR) * 0.3
+    write_ogg("phone_dead", tone * (np.arange(len(tone)) % int(0.5 * SR) < int(0.25 * SR)), peak_to=0.3)
+
+
+def knock():
+    rng = np.random.default_rng(22)
+    n = int(1.4 * SR)
+    x = np.zeros(n)
+    for k, tt in enumerate((0.0, 0.32, 0.62)):
+        i = int(tt * SR)
+        ln = int(0.25 * SR)
+        tl = np.arange(ln) / SR
+        k1 = lp(rng.standard_normal(ln), 900) * np.exp(-tl / 0.02) * 2.0 + np.sin(2 * np.pi * 110 * tl) * np.exp(-tl / 0.05)
+        x[i:i + ln] += k1 * (1.0 - k * 0.1)
+    write_ogg("knock", x)
+
+
+def knife():
+    rng = np.random.default_rng(23)
+    n = int(0.6 * SR)
+    t = np.arange(n) / SR
+    swish = bp(rng.standard_normal(n), 2500, 9000) * np.sin(np.pi * np.clip(t / 0.35, 0, 1)) ** 2
+    ring = np.sin(2 * np.pi * 3400 * t) * np.exp(-t / 0.25) * 0.15 * (t > 0.05)
+    write_ogg("knife_swish", swish + ring)
+
+
+def drag():
+    rng = np.random.default_rng(24)
+    n = int(3.5 * SR)
+    t = np.arange(n) / SR
+    grain = lp(rng.standard_normal(n), 700) * (0.6 + 0.4 * np.sin(2 * np.pi * 1.1 * t) ** 2)
+    thumps = np.zeros(n)
+    for tt in (0.4, 1.3, 2.2, 3.0):
+        i = int(tt * SR)
+        ln = int(0.2 * SR)
+        thumps[i:i + ln] += lp(rng.standard_normal(ln), 200) * np.exp(-np.arange(ln) / (0.04 * SR)) * 2.0
+    write_ogg("drag", grain + thumps)
+
+
+def clock():
+    rng = np.random.default_rng(25)
+    n = int(0.3 * SR)
+    t = np.arange(n) / SR
+    tick = bp(rng.standard_normal(n), 1500, 6000) * np.exp(-t / 0.006) + np.sin(2 * np.pi * 2200 * t) * np.exp(-t / 0.02) * 0.3
+    write_ogg("clock_tick", tick, peak_to=0.5)
+    n = int(6.0 * SR)
+    t = np.arange(n) / SR
+    bell = np.zeros(n)
+    for f, a, d in ((196.0, 1.0, 3.5), (392.3, 0.5, 2.5), (588.0, 0.35, 1.8), (811.0, 0.2, 1.2), (1102.0, 0.12, 0.8)):
+        bell += np.sin(2 * np.pi * f * t) * a * np.exp(-t / d)
+    write_ogg("clock_chime", bell * np.clip(t / 0.005, 0, 1))
+
+
+def amb_flat():
+    """Inside the flat: rain on the windows, gutters, a far car, the fridge."""
+    rng = np.random.default_rng(26)
+    n = int(60 * SR)
+    L = lp(rain_bed(n, rng, 0.7), 4500)
+    R = lp(rain_bed(n, rng, 0.7), 4500)
+    hum = np.sin(2 * np.pi * 50 * np.arange(n) / SR) * 0.004 + lp(rng.standard_normal(n), 120) * 0.15
+    gutter = bp(rng.standard_normal(n), 400, 1800) * 0.02 * (0.5 + 0.5 * np.sin(2 * np.pi * np.arange(n) / SR / 9.0))
+    write_ogg("amb_flat", loopify(stereo(L + hum + gutter, R + hum)), q=3)
+
+
+def chase():
+    """A pounding low pulse, scraping metal and a rising whine: run."""
+    rng = np.random.default_rng(27)
+    dur = 16.0
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    beat = 60.0 / 150.0
+    x = np.zeros(n)
+    for k in range(int(dur / beat)):
+        i = int(k * beat * SR)
+        ln = int(0.3 * SR)
+        if i + ln > n:
+            break
+        tl = np.arange(ln) / SR
+        x[i:i + ln] += np.sin(2 * np.pi * (60 - 30 * tl) * tl) * np.exp(-tl / 0.12) * (1.2 if k % 2 == 0 else 0.8)
+    scrape = bp(rng.standard_normal(n), 1800, 5000) * (0.5 + 0.5 * np.sin(2 * np.pi * t / 2.0)) ** 6 * 0.25
+    whine = np.sin(2 * np.pi * (800 + 25 * t) * t) * 0.03
+    drone = lp(rng.standard_normal(n), 90) * 0.5
+    write_ogg("chase_loop", loopify(stereo(x + scrape + whine + drone, x + scrape * 0.7 + whine + drone), 1.0), q=3)
+
+
+def misc():
+    rng = np.random.default_rng(28)
+    n = int(0.6 * SR)
+    t = np.arange(n) / SR
+    shutter = hp(rng.standard_normal(n), 2000) * (np.exp(-t / 0.004) + 0.6 * np.exp(-np.clip(t - 0.08, 0, None) / 0.004) * (t > 0.08))
+    whine = np.sin(2 * np.pi * (2000 + 6000 * t) * t) * 0.05 * np.exp(-t / 0.4)
+    write_ogg("shutter", shutter + whine)
+    n = int(0.15 * SR)
+    t = np.arange(n) / SR
+    write_ogg("rec_click", hp(rng.standard_normal(n), 3000) * np.exp(-t / 0.003), peak_to=0.4)
+    n = int(2.5 * SR)
+    t = np.arange(n) / SR
+    tw = sum(np.sin(2 * np.pi * 220 * k * t * (1 + 0.0005 * k * k)) / k for k in range(1, 12)) * np.exp(-t / 0.8)
+    write_ogg("wire_twang", tw * np.clip(t / 0.002, 0, 1))
+    n = int(0.8 * SR)
+    t = np.arange(n) / SR
+    stab = lp(rng.standard_normal(n), 600) * np.exp(-t / 0.06) * 1.5 + np.sin(2 * np.pi * 80 * t) * np.exp(-t / 0.1)
+    write_ogg("stab", stab)
+    n = int(1.5 * SR)
+    t = np.arange(n) / SR
+    write_ogg("money", bp(rng.standard_normal(n), 2000, 8000) * (np.sin(2 * np.pi * 6 * t) > 0.3) * np.exp(-t / 0.6) * 0.5)
+    write_ogg("glass_drop", bp(rng.standard_normal(int(1.2 * SR)), 2500, 9000) * np.exp(-np.arange(int(1.2 * SR)) / (0.18 * SR)))
+
+
+ALL.update({"phone_ring": phone_ring, "phone_click": phone_click, "knock": knock, "knife": knife,
+            "drag": drag, "clock": clock, "amb_flat": amb_flat, "chase": chase, "misc": misc})
+
+
 if __name__ == "__main__":
     names = sys.argv[1:] or list(ALL)
     for nm in names:
