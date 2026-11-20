@@ -14,3 +14,4 @@ blindact/scratch_test/
 blindact/scenes/eye_test.tscn
 # realistic eye textures (unused for now; regenerate with blindact/tools/gen_eye.py)
 blindact/assets/textures/eye_*
+blindact/scenes/char_test.tscn

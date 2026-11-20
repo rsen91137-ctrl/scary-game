@@ -100,7 +100,7 @@ def peel():
     # R: paint peeled off (sharp, flaky edges); G: water stain rings; B: grime
     n1 = T.fft_noise(N, N, 21, beta=2.6)
     n2 = T.fft_noise(N, N, 22, beta=1.2)
-    pe = T.smoothstep(0.66, 0.70, n1 + (n2 - 0.5) * 0.12)
+    pe = T.smoothstep(0.58, 0.62, n1 + (n2 - 0.5) * 0.12)
     st = T.fft_noise(N, N, 23, beta=3.0)
     ring = np.exp(-np.square((st - 0.68) / 0.012)) * 0.9 + T.smoothstep(0.62, 0.75, st) * 0.4
     gr = T.fft_noise(N, N, 24, beta=2.0)

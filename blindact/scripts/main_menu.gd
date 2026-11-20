@@ -166,6 +166,11 @@ func _dev_flags() -> void:
 				L.trigger()
 		elif a.begins_with("--noui"):
 			ui.visible = false
+		elif a.begins_with("--nopuddle"):
+			for f: Node3D in stairs.floors:
+				for c in f.get_children():
+					if c is MeshInstance3D and (c as MeshInstance3D).mesh is PlaneMesh:
+						(c as MeshInstance3D).visible = false
 		elif a.begins_with("--lightning"):
 			_lightning()
 
@@ -292,6 +297,8 @@ func _process(delta: float) -> void:
 	var fl := flash * (0.6 + 0.4 * sin(_t * 60.0)) if flash > 0.3 else flash
 	stairs.window_mat.set_shader_parameter("flash", fl)
 	stairs.window_mat.set_shader_parameter("time_s", _t)
+	for pm: ShaderMaterial in stairs.puddles:
+		pm.set_shader_parameter("time_s", _t)
 	stairs.moon.light_energy = 2.2 + fl * 30.0
 	# the menu reacts to the light: darker title when the bulbs are off
 	var lit := 0.0
@@ -299,7 +306,7 @@ func _process(delta: float) -> void:
 		lit = maxf(lit, L.level)
 	ui.flicker = clampf(0.35 + lit * 0.65 + fl, 0.0, 1.0)
 	ui.heart_pulse = body.pulse
-	post_mat.set_shader_parameter("sunglasses", 0.78)
+	post_mat.set_shader_parameter("sunglasses", 0.62)
 	post_mat.set_shader_parameter("vignette", 0.6)
 	post_mat.set_shader_parameter("pulse", body.pulse * 0.4)
 	post_mat.set_shader_parameter("fade", fade)

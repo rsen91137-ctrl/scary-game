@@ -12,7 +12,7 @@ dest_files=["res://.godot/imported/amb_stair.ogg-8ed45290556c2bb7b075632220d4285
 
 [params]
 
-loop=false
+loop=true
 loop_offset=0
 bpm=0
 beat_count=0

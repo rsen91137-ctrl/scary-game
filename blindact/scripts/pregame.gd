@@ -3,7 +3,7 @@ extends Node
 ## it stretches, blurs, trembles, blinks, bleeds ink, gets scratched over,
 ## stares — while a broken piano plays (every note appears on screen) and a
 ## man whispers (every word seeps up in red). Over it: difficulty ->
-## microphone calibration -> the backstory. Then the eye swells, the
+## microphone calibration. Then the eye swells, the
 ## picture shatters like glass and the night begins.
 
 const GAME_SCENE := "res://scenes/game.tscn"
@@ -192,10 +192,9 @@ func _on_difficulty(i: int) -> void:
 
 
 func _on_calibrated(use_mic: bool) -> void:
+	# the backstory is told inside the game now (the phone call); straight in
 	Settings.mic_this_run = use_mic
-	state = "story"
-	whispers.whisper(6)
-	ui.show_story(STORY)
+	_start_zoom()
 
 
 func _on_back() -> void:

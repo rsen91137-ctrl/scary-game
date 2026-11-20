@@ -9,7 +9,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-LOOPS = {"bgm_corridor", "amb_night", "lamp_buzz", "tinnitus", "dizzy"}
+LOOPS = {"amb_stair", "drone_eye"}
 
 
 def edit(p: Path, subs):

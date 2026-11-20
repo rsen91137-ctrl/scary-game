@@ -191,3 +191,100 @@ static func strand(segments: int = 5, radius: float = 0.0025) -> ArrayMesh:
 		pts.append(Vector3(sin(t * 2.3) * 0.03 * t, -t, cos(t * 1.7) * 0.02 * t))
 		radii.append(radius * (1.0 - 0.6 * t))
 	return tube(pts, radii, 3, 1.0)
+
+
+## A worn concrete step, front (riser) facing -z, tread on top at y = height.
+## The nosing is rounded, chipped here and there, and the tread is dished
+## where people have walked for decades. UVs in metres.
+static func worn_step(width: float, height: float, run: float, seed: int, wear := 1.0) -> ArrayMesh:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed
+	var r := 0.018
+	# profile (y, z) with outward normals
+	var prof: Array = []      # [Vector2(y, z), Vector2 normal(y, z)]
+	prof.append([Vector2(0.0, 0.0), Vector2(0.0, -1.0)])
+	prof.append([Vector2(height - r, 0.0), Vector2(0.0, -1.0)])
+	for i in range(1, 6):
+		var t := PI * 0.5 * float(i) / 5.0
+		prof.append([Vector2(height - r + r * sin(t), r - r * cos(t)), Vector2(sin(t), -cos(t))])
+	for k in range(1, 6):
+		prof.append([Vector2(height, r + (run - r) * float(k) / 5.0), Vector2(1.0, 0.0)])
+	var nx := 14
+	var chips: Array = []
+	for c in rng.randi_range(1, 4):
+		chips.append([rng.randf_range(-width * 0.45, width * 0.45), rng.randf_range(0.02, 0.07), rng.randf_range(0.006, 0.018)])
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var pts := []   # grid of positions [ix][ip]
+	var nrm := []
+	for ix in nx + 1:
+		var x := -width * 0.5 + width * float(ix) / nx
+		var col_p: Array[Vector3] = []
+		var col_n: Array[Vector3] = []
+		for ip in prof.size():
+			var yz: Vector2 = prof[ip][0]
+			var nn: Vector2 = prof[ip][1]
+			var y := yz.x
+			var z := yz.y
+			# dished tread in the middle of the walking line
+			if nn.x > 0.5 and y >= height - 0.001:
+				y -= wear * 0.009 * exp(-pow(x / (0.32 * width), 2.0)) * exp(-pow((z - 0.06) / 0.12, 2.0))
+			# chips bitten out of the nosing
+			if ip >= 1 and ip <= 6:
+				for ch: Array in chips:
+					var d := absf(x - float(ch[0])) / float(ch[1])
+					if d < 1.0:
+						var bite := float(ch[2]) * (1.0 - d * d)
+						y -= bite * nn.x
+						z += bite * -nn.y
+			col_p.append(Vector3(x, y, z))
+			col_n.append(Vector3(0.0, nn.x, nn.y).normalized())
+		pts.append(col_p)
+		nrm.append(col_n)
+	var vlen: Array[float] = [0.0]
+	for ip in range(1, prof.size()):
+		vlen.append(vlen[ip - 1] + (prof[ip][0] as Vector2).distance_to(prof[ip - 1][0]))
+	for ix in nx:
+		for ip in prof.size() - 1:
+			var a: Vector3 = pts[ix][ip]
+			var b: Vector3 = pts[ix + 1][ip]
+			var c: Vector3 = pts[ix + 1][ip + 1]
+			var d: Vector3 = pts[ix][ip + 1]
+			var na: Vector3 = nrm[ix][ip]
+			var nb: Vector3 = nrm[ix + 1][ip]
+			var nc: Vector3 = nrm[ix + 1][ip + 1]
+			var nd: Vector3 = nrm[ix][ip + 1]
+			var ua := Vector2(a.x, vlen[ip])
+			var ub := Vector2(b.x, vlen[ip])
+			var uc := Vector2(c.x, vlen[ip + 1])
+			var ud := Vector2(d.x, vlen[ip + 1])
+			for tri: Array in [[a, na, ua, b, nb, ub, c, nc, uc], [a, na, ua, c, nc, uc, d, nd, ud]]:
+				for k in 3:
+					st.set_normal(tri[k * 3 + 1])
+					st.set_uv(tri[k * 3 + 2])
+					st.add_vertex(tri[k * 3])
+	# side caps and the back face
+	for side: int in [0, nx]:
+		var sgn := -1.0 if side == 0 else 1.0
+		var col: Array = pts[side]
+		var cen := Vector3(col[0].x, height * 0.5, run * 0.5)
+		var ring: Array = col.duplicate()
+		ring.append(Vector3(col[0].x, 0.0, run))
+		for i in ring.size():
+			var p0: Vector3 = ring[i]
+			var p1: Vector3 = ring[(i + 1) % ring.size()]
+			var tri := [cen, p0, p1] if sgn > 0.0 else [cen, p1, p0]
+			for q: Vector3 in tri:
+				st.set_normal(Vector3(sgn, 0.0, 0.0))
+				st.set_uv(Vector2(q.z, q.y))
+				st.add_vertex(q)
+	var bl := Vector3(-width * 0.5, 0.0, run)
+	var br := Vector3(width * 0.5, 0.0, run)
+	var tr := Vector3(width * 0.5, height, run)
+	var tl := Vector3(-width * 0.5, height, run)
+	for q: Vector3 in [bl, tl, tr, bl, tr, br]:
+		st.set_normal(Vector3.BACK)
+		st.set_uv(Vector2(q.x, q.y))
+		st.add_vertex(q)
+	st.generate_tangents()
+	return st.commit()

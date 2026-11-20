@@ -11,7 +11,7 @@ var bulb_mat: StandardMaterial3D
 var hold := 7.0               # seconds it stays on
 var dying := false
 var broken := false
-var energy := 1.1
+var energy := 1.7
 var level := 0.0
 
 var _target := 0.0
@@ -58,7 +58,7 @@ func _ready() -> void:
 	add_child(bulb)
 	light = OmniLight3D.new()
 	light.light_color = Color(1.0, 0.66, 0.38)
-	light.omni_range = 6.5
+	light.omni_range = 7.5
 	light.omni_attenuation = 1.4
 	light.shadow_enabled = true
 	light.light_size = 0.05

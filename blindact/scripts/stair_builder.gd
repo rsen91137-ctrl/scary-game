@@ -22,6 +22,7 @@ var floors: Array[Node3D] = []
 var lights: Array[SensorLight] = []        # [floor0 landing, floor0 half, floor1 ...]
 var moon: SpotLight3D
 var window_mat: ShaderMaterial
+var puddles: Array[ShaderMaterial] = []
 var _mats := {}
 var _decal_tex := {}
 var _floor_numbers := ["3", "4", "5"]
@@ -134,6 +135,49 @@ func _make_materials() -> void:
 			_decal_tex[n] = t
 
 
+func _dust(pos: Vector3, extents: Vector3) -> GPUParticles3D:
+	var p := GPUParticles3D.new()
+	p.amount = 160
+	p.lifetime = 14.0
+	p.preprocess = 14.0
+	p.position = pos
+	p.visibility_aabb = AABB(-extents * 2.0, extents * 4.0)
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pm.emission_box_extents = extents
+	pm.direction = Vector3(0.2, -1.0, 0.0)
+	pm.spread = 180.0
+	pm.initial_velocity_min = 0.004
+	pm.initial_velocity_max = 0.025
+	pm.gravity = Vector3(0.0, -0.003, 0.0)
+	pm.turbulence_enabled = true
+	pm.turbulence_noise_strength = 0.15
+	pm.turbulence_noise_scale = 2.0
+	pm.scale_min = 0.5
+	pm.scale_max = 1.4
+	p.process_material = pm
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.005, 0.005)
+	var mat := StandardMaterial3D.new()
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(0.9, 0.9, 0.95, 0.55)
+	var g := Gradient.new()
+	g.set_color(0, Color(1, 1, 1, 1))
+	g.set_color(1, Color(1, 1, 1, 0))
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.fill = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(0.5, 0.0)
+	gt.width = 32
+	gt.height = 32
+	mat.albedo_texture = gt
+	quad.material = mat
+	p.draw_pass_1 = quad
+	return p
+
+
 func _box(parent: Node3D, size: Vector3, pos: Vector3, mat: Material, rot_y := 0.0) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	mi.mesh = MeshUtil.box(size)
@@ -157,9 +201,23 @@ func _build_floor(f: Node3D, k: int) -> void:
 	for i in NRISE - 1:
 		var top := (i + 1) * r
 		var za := ZL + i * RUN
-		_box(f, Vector3(fw, top + 0.02, RUN), Vector3(-GAP - fw * 0.5, top * 0.5 - 0.01, za + RUN * 0.5), _mats.step)
+		# a worn step on top of a plain block that fills down to the slab
+		var sa_ := MeshInstance3D.new()
+		sa_.mesh = MeshUtil.worn_step(fw, r, RUN, k * 100 + i)
+		sa_.material_override = _mats.step
+		sa_.position = Vector3(-GAP - fw * 0.5, top - r, za)
+		f.add_child(sa_)
+		if top - r > 0.01:
+			_box(f, Vector3(fw, top - r, RUN), Vector3(-GAP - fw * 0.5, (top - r) * 0.5, za + RUN * 0.5), _mats.step)
 		var zb := ZH - i * RUN
-		_box(f, Vector3(fw, top + 0.02, RUN), Vector3(GAP + fw * 0.5, H * 0.5 + top * 0.5 - 0.01, zb - RUN * 0.5), _mats.step)
+		var sb_ := MeshInstance3D.new()
+		sb_.mesh = MeshUtil.worn_step(fw, r, RUN, k * 100 + 50 + i)
+		sb_.material_override = _mats.step
+		sb_.position = Vector3(GAP + fw * 0.5, H * 0.5 + top - r, zb)
+		sb_.rotation.y = PI
+		f.add_child(sb_)
+		if top - r > 0.01:
+			_box(f, Vector3(fw, top - r, RUN), Vector3(GAP + fw * 0.5, H * 0.5 + (top - r) * 0.5, zb - RUN * 0.5), _mats.step)
 	# sloped soffits under the flights (seen from the landing below)
 	var slope_len := sqrt(pow(ZH - ZL, 2.0) + pow(H * 0.5, 2.0))
 	var ang := atan2(H * 0.5, ZH - ZL)
@@ -174,8 +232,9 @@ func _build_floor(f: Node3D, k: int) -> void:
 	wl.set_meta("wall", true)
 	_box(f, Vector3(WALL_T, H, hz), Vector3(W + WALL_T * 0.5, H * 0.5, zc), _mats.wall)
 	_box(f, Vector3(2 * W, H, WALL_T), Vector3(0, H * 0.5, Z0 - WALL_T * 0.5), _mats.wall)
-	var wy0 := H * 0.5 + 0.95
-	var wy1 := H * 0.5 + 2.1
+	# the window must stay inside this floor's slice of the far wall
+	var wy0 := H * 0.5 + 0.55
+	var wy1 := H - 0.06
 	var wx := 0.55
 	var zf := Z1 + WALL_T * 0.5
 	_box(f, Vector3(2 * W, wy0, WALL_T), Vector3(0, wy0 * 0.5, zf), _mats.wall)
@@ -235,6 +294,8 @@ func _build_floor(f: Node3D, k: int) -> void:
 	f.add_child(l2)
 	lights.append(l1)
 	lights.append(l2)
+	# dust hanging in the moonlight by the window
+	f.add_child(_dust(Vector3(0.0, H * 0.5 + 1.2, Z1 - 0.9), Vector3(1.1, 0.9, 0.8)))
 	# a dressing node rebuilt by configure()
 	var dress := Node3D.new()
 	dress.name = "Dressing"
@@ -340,7 +401,7 @@ func configure(k: int, seed: int, number := "") -> void:
 		c.queue_free()
 	# walls: a per-floor decay level and texture offset (via a material copy)
 	var wm: ShaderMaterial = (_mats.wall as ShaderMaterial).duplicate()
-	wm.set_shader_parameter("decay", r.randf_range(0.55, 1.0))
+	wm.set_shader_parameter("decay", r.randf_range(0.8, 1.0))
 	wm.set_shader_parameter("uv_offset", Vector2(r.randf() * 10.0, r.randf() * 10.0))
 	for c in f.get_children():
 		if c is MeshInstance3D and (c as MeshInstance3D).material_override == _mats.wall or (c is MeshInstance3D and (c as MeshInstance3D).material_override is ShaderMaterial and (c as MeshInstance3D).material_override != window_mat):
@@ -370,6 +431,9 @@ func configure(k: int, seed: int, number := "") -> void:
 		if n == "soot":
 			pos.y = base_y + r.randf_range(1.9, 2.4)
 		_decal(dress, n, pos, nrm, r.randf_range(0.5, 1.2), r.randf_range(-0.3, 0.3))
+	for i in r.randi_range(1, 3):
+		var cn: String = ["stain", "stain2", "mold"][r.randi() % 3]
+		_decal(dress, cn, Vector3(r.randf_range(-W + 0.3, W - 0.3), H - SLAB - 0.01, r.randf_range(Z0 + 0.3, ZL - 0.2)), Vector3(0, -1, 0), r.randf_range(0.6, 1.3), r.randf() * TAU)
 	if r.randf() < 0.45:
 		_decal(dress, "eye_tag", Vector3(r.randf_range(-0.6, 0.6), H * 0.5 + 1.2, Z1 - 0.02 - WALL_T * 0.0), Vector3(0, 0, -1), 0.7)
 	if r.randf() < 0.6:
@@ -425,7 +489,7 @@ func configure(k: int, seed: int, number := "") -> void:
 		var L: SensorLight = lights[li]
 		L.dying = r.randf() < 0.3
 		L.broken = r.randf() < 0.12
-		L.energy = r.randf_range(0.8, 1.25)
+		L.energy = r.randf_range(1.3, 1.9)
 
 
 func _floor_y(x: float, z: float) -> float:
