@@ -367,7 +367,9 @@ func _table_lamp(parent: Node3D, lname: String, pos: Vector3, energy: float) -> 
 			Vector2(0.18, 0.1), Vector2(0.18, 0.3), Vector2(0.35, 0.32), Vector2(0.0, 0.33)], Vector2(0.075, 0.075), Vector3.ZERO, _m.nickel, 2.0, 18)
 	var shade := Props.lathe(n, [Vector2(1.0, 0.24), Vector2(0.55, 0.42)], Vector2(0.17, 0.17), Vector3.ZERO, _shade_mat(), 2.0, 28)
 	shade.name = "Shade"
-	_lamp(n, lname, Vector3(0.0, 0.31, 0.0), COLD, energy, 5.5)
+	var l := _lamp(n, lname, Vector3(0.0, 0.31, 0.0), COLD, energy, 5.5)
+	l.light_size = 0.06
+	l.light_volumetric_fog_energy = 0.15
 
 
 ## A standard lamp: weighted base, brass pole, a pleated shade that throws
@@ -381,7 +383,9 @@ func _standard_lamp(parent: Node3D, lname: String, pos: Vector3, energy: float, 
 	_lathe(n, PackedVector2Array([Vector2(1.0, 0.06), Vector2(1.0, 1.42), Vector2(0.0, 1.42)]), Vector2(0.012, 0.012), 2.0, Vector3.ZERO, _m.brass, 10)
 	var shade := _lathe(n, PackedVector2Array([Vector2(1.0, 1.3), Vector2(0.62, 1.58)]), Vector2(0.24, 0.24), 2.0, Vector3.ZERO, _shade_mat(), 28)
 	shade.name = "Shade"
-	_lamp(n, lname, Vector3(0.0, 1.46, 0.0), COLD, energy, 5.0, shadow)
+	var l := _lamp(n, lname, Vector3(0.0, 1.46, 0.0), COLD, energy, 5.0, shadow)
+	l.light_size = 0.06
+	l.light_volumetric_fog_energy = 0.15
 
 
 ## A wall sconce: brass plate and arm, a small cone shade pointing up.

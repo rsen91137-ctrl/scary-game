@@ -16,7 +16,7 @@ func setup(parent: Node) -> void:
 	env.background_color = Color(0, 0, 0)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.07, 0.09, 0.12)
-	env.ambient_light_energy = 0.4
+	env.ambient_light_energy = 0.55
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
 	env.tonemap_exposure = base_exposure
