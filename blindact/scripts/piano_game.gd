@@ -24,6 +24,7 @@ var acc: Array = []               # [time, midi, done]
 var length := 0.0
 var _last_press := 0.0
 var _stopped_flag := false
+var _miss_streak := 0
 var _flash: Array[float] = [0.0, 0.0, 0.0, 0.0]
 var _rng := RandomNumberGenerator.new()
 
@@ -96,6 +97,7 @@ func start(song: Dictionary) -> void:
 	t = 0.0
 	_last_press = 0.0
 	_stopped_flag = false
+	_miss_streak = 0
 	active = true
 	visible = true
 
@@ -128,6 +130,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if best >= 0:
 		var n: Array = notes[best]
 		n[3] = 1
+		_miss_streak = 0
+		_stopped_flag = false
 		piano.play(int(n[2]), 0.62 + _rng.randf_range(-0.08, 0.08), "", _rng.randf_range(-6.0, 6.0) * shake)
 		hit.emit(lane)
 	else:
@@ -150,15 +154,11 @@ func _process(delta: float) -> void:
 		if int(n[3]) == 0 and t > float(n[0]) + 0.2:
 			n[3] = 2
 			missed.emit(int(n[1]))
-	# he notices when the music stops for no reason
-	var due := false
-	for n: Array in notes:
-		if absf(float(n[0]) - t) < 1.5:
-			due = true
-			break
-	if due and t - _last_press > 3.0 and not _stopped_flag:
-		_stopped_flag = true
-		stopped.emit()
+			_miss_streak += 1
+			# he notices when the melody stops: three notes in a row missing
+			if _miss_streak >= 3 and not _stopped_flag:
+				_stopped_flag = true
+				stopped.emit()
 	if t > length + 1.0:
 		active = false
 		visible = false

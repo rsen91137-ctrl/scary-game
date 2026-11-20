@@ -23,6 +23,7 @@ var window_mat: ShaderMaterial
 var clock_pendulum: Node3D
 var doors := {}                    # id -> hinge Node3D
 var piano_keys: MultiMeshInstance3D
+var metronome_arm: Node3D
 var _m := {}
 
 
@@ -33,6 +34,7 @@ func build() -> void:
 	_bathroom()
 	_bedroom()
 	_home()
+	_dress()
 
 
 # ---------------------------------------------------------------------------
@@ -579,3 +581,147 @@ func _home() -> void:
 	_lamp(r, "home_lamp", Vector3(ox + 3.0, 1.3, 3.55), Color(1.0, 0.68, 0.4), 0.9, 5.0)
 	spots.home_start = Vector3(ox + 1.6, 0.0, 1.6)
 	spots.home_out = Vector3(ox + 2.95, 0.0, 0.6)
+
+
+# ---------------------------------------------------------------------------
+# dressing: what makes it somebody's home, gone wrong
+# ---------------------------------------------------------------------------
+func _quad_img(parent: Node3D, tex_name: String, size: Vector2, pos: Vector3, rot_y: float) -> void:
+	var q := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = size
+	q.mesh = qm
+	var m := StandardMaterial3D.new()
+	var p := "res://assets/textures/decals/%s.png" % tex_name
+	if ResourceLoader.exists(p):
+		m.albedo_texture = load(p)
+	m.roughness = 0.35
+	q.material_override = m
+	q.position = pos
+	q.rotation.y = rot_y
+	parent.add_child(q)
+
+
+func _wainscot(parent: Node3D, a: Vector3, b: Vector3) -> void:
+	# a run of panelling 0.95 m high from a to b (on the floor), facing into the room
+	var d := b - a
+	var len := d.length()
+	var mid := (a + b) * 0.5
+	var rot := atan2(d.x, d.z)
+	var panel := _solid(parent, Vector3(0.025, 0.95, len), mid + Vector3(0, 0.475, 0), _m.wood, rot, false)
+	panel.rotation.y = rot
+	var rail := _solid(parent, Vector3(0.05, 0.05, len), mid + Vector3(0, 0.97, 0), _m.wood, rot, false)
+	rail.rotation.y = rot
+	var skirt := _solid(parent, Vector3(0.035, 0.12, len), mid + Vector3(0, 0.06, 0), _m.wood, rot, false)
+	skirt.rotation.y = rot
+
+
+func _dress() -> void:
+	var liv: Node3D = get_node("Living")
+	var hall: Node3D = get_node("Hall")
+	# panelling round the living room (not behind the piano), skirting in the hall
+	_wainscot(liv, Vector3(-5.18, 0, 0.02), Vector3(-0.67, 0, 0.02))
+	_wainscot(liv, Vector3(-0.67, 0, 0.02), Vector3(-0.67, 0, 1.2))
+	_wainscot(liv, Vector3(-0.67, 0, 2.4), Vector3(-0.67, 0, 4.58))
+	_wainscot(liv, Vector3(-0.67, 0, 4.58), Vector3(-2.5, 0, 4.58))
+	_wainscot(liv, Vector3(-3.9, 0, 4.58), Vector3(-5.18, 0, 4.58))
+	for side: float in [-1.0, 1.0]:
+		var sk := _solid(hall, Vector3(0.03, 0.12, 6.4), Vector3(side * 0.63, 0.06, 3.2), _m.wood, 0.0, false)
+		sk.name = "Skirt"
+	# photographs and a painting
+	_quad_img(liv, "photo_wedding", Vector2(0.38, 0.46), Vector3(-1.9, 1.75, 0.11), 0.0)
+	_quad_img(liv, "painting", Vector2(0.56, 0.42), Vector3(-2.7, 1.87, 0.11), 0.0)
+	_quad_img(liv, "photo_her", Vector2(0.5, 0.48), Vector3(-3.5, 1.75, 0.11), 0.0)
+	_quad_img(hall, "photo_her", Vector2(0.24, 0.3), Vector3(-0.62, 1.55, 4.6), PI * 0.5)
+	# a dead chandelier on a chain
+	var ch := Node3D.new()
+	ch.position = Vector3(-3.0, CEIL - 0.55, 2.2)
+	liv.add_child(ch)
+	var ring := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.28
+	tm.outer_radius = 0.31
+	ring.mesh = tm
+	ring.material_override = _m.metal
+	ch.add_child(ring)
+	_solid(ch, Vector3(0.015, 0.55, 0.015), Vector3(0, 0.28, 0), _m.metal, 0.0, false)
+	for i in 6:
+		var ang := TAU * float(i) / 6.0
+		var c := _solid(ch, Vector3(0.03, 0.09, 0.03), Vector3(cos(ang) * 0.3, 0.06, sin(ang) * 0.3), _m.ivory, 0.0, false)
+		c.name = "Candle%d" % i
+	# on the piano: metronome, dead flowers, a pile of music
+	var piano: Node3D = liv.get_node("Piano")
+	var met := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.015
+	cm.bottom_radius = 0.07
+	cm.height = 0.22
+	cm.radial_segments = 4
+	met.mesh = cm
+	met.material_override = _m.lacquer
+	met.position = Vector3(0.45, 1.39, 0.0)
+	met.rotation.y = PI * 0.25
+	piano.add_child(met)
+	metronome_arm = Node3D.new()
+	metronome_arm.position = Vector3(0.45, 1.3, 0.05)
+	piano.add_child(metronome_arm)
+	_solid(metronome_arm, Vector3(0.006, 0.2, 0.006), Vector3(0, 0.1, 0), _m.metal, 0.0, false)
+	var vase := MeshInstance3D.new()
+	var vm := CylinderMesh.new()
+	vm.top_radius = 0.04
+	vm.bottom_radius = 0.06
+	vm.height = 0.24
+	vase.mesh = vm
+	vase.material_override = _m.porcelain
+	vase.position = Vector3(-0.35, 1.4, 0.0)
+	piano.add_child(vase)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 77
+	for i in 7:
+		var stem := _solid(piano, Vector3(0.005, 0.3, 0.005), Vector3(-0.35 + rng.randf_range(-0.03, 0.03), 1.64, rng.randf_range(-0.03, 0.03)), _flat(Color(0.12, 0.1, 0.05), 0.9), 0.0, false)
+		stem.rotation = Vector3(rng.randf_range(-0.5, 0.5), 0, rng.randf_range(-0.6, 0.6))
+		var head := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.022
+		sm.height = 0.03
+		head.mesh = sm
+		head.material_override = _flat(Color(0.18, 0.06, 0.06), 0.9)
+		head.position = Vector3(0, 0.15, 0)
+		stem.add_child(head)
+	_solid(piano, Vector3(0.32, 0.06, 0.24), Vector3(0.05, 1.31, -0.05), _flat(Color(0.7, 0.66, 0.56), 0.9), 0.1, false)
+	# dust drifting in the lamplight
+	var dust := GPUParticles3D.new()
+	dust.amount = 120
+	dust.lifetime = 12.0
+	dust.preprocess = 12.0
+	dust.position = Vector3(-4.3, 1.5, 1.9)
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pm.emission_box_extents = Vector3(0.9, 0.7, 0.9)
+	pm.direction = Vector3(0, -1, 0)
+	pm.spread = 180.0
+	pm.initial_velocity_min = 0.004
+	pm.initial_velocity_max = 0.02
+	pm.gravity = Vector3(0, -0.003, 0)
+	pm.turbulence_enabled = true
+	pm.turbulence_noise_strength = 0.15
+	dust.process_material = pm
+	var dq := QuadMesh.new()
+	dq.size = Vector2(0.004, 0.004)
+	var dm := StandardMaterial3D.new()
+	dm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	dm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	dm.albedo_color = Color(1, 0.9, 0.8, 0.5)
+	dq.material = dm
+	dust.draw_pass_1 = dq
+	liv.add_child(dust)
+	# drag marks down the hall, from the bathroom door
+	for i in 7:
+		var d := Decal.new()
+		var tp := "res://assets/textures/decals/stain2.png"
+		if ResourceLoader.exists(tp):
+			d.texture_albedo = load(tp)
+		d.modulate = Color(0.35, 0.02, 0.02)
+		d.size = Vector3(0.4, 0.2, 0.6)
+		d.position = Vector3(0.15 * sin(float(i)), 0.02, 4.0 - i * 0.42)
+		hall.add_child(d)

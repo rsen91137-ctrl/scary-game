@@ -69,6 +69,7 @@ const POSES := {
 }
 
 var who := "man"
+var body_shape: StaticBody3D
 var skel: Skeleton3D
 var meshes: Array[MeshInstance3D] = []
 var current := ""
@@ -98,6 +99,18 @@ func setup(p_who: String) -> void:
 	inst.position.y = -low
 	_apply_materials()
 	set_pose("stand", 0.0)
+	# a body you can bump into
+	var sb := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.22
+	cap.height = 1.6
+	cs.shape = cap
+	cs.position.y = 0.85
+	sb.add_child(cs)
+	sb.collision_layer = 4
+	add_child(sb)
+	body_shape = sb
 
 
 func _find_skeleton(n: Node) -> Skeleton3D:

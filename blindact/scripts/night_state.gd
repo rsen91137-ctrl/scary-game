@@ -42,8 +42,10 @@ func max_suspicion() -> float:
 
 
 func visual(id: String, pos: Vector3, window := 2.5, weight := 1.0) -> void:
+	var to := (pos - player.eye_pos()).normalized()
 	_tests.append({"kind": "visual", "id": id, "pos": pos, "t0": _t, "window": window, "w": weight,
-		"fix": 0.0, "flinched": false, "start_dir": player.look_dir(), "misses0": piano_misses})
+		"fix": 0.0, "flinched": false, "ang0": player.look_dir().angle_to(to), "misses0": piano_misses,
+		"track": 0.0, "prev_ang": player.look_dir().angle_to(to)})
 
 
 func sound(id: String, pos: Vector3, window := 2.4, weight := 1.0) -> void:
@@ -132,12 +134,21 @@ func _judge_visual(t: Dictionary, age: float, delta: float) -> void:
 	if not bool(t.flinched) and age < 0.9 and player.ang_speed > 4.0 and ang < deg_to_rad(60.0):
 		t.flinched = true
 		add_suspicion(32.0 * float(t.w), "TELL_FLINCH")
-	# fixation: resting your gaze on it
-	if ang < deg_to_rad(9.0):
+	# fixation: you moved your gaze onto it and kept it there. Something put
+	# in front of your face is not a tell; turning your eyes to it is.
+	var moved_onto := float(t.ang0) > deg_to_rad(16.0)
+	if ang < deg_to_rad(9.0) and moved_onto:
 		t.fix = float(t.fix) + delta
 		if float(t.fix) > float(Difficulty.get_value("fixate_time")):
 			t.fix = -99.0
 			add_suspicion(26.0 * float(t.w), "TELL_STARE")
+	# tracking: your view keeps closing in on a thing that is moving
+	if player.ang_speed > 0.6 and ang < float(t.prev_ang) - 0.002 and ang < deg_to_rad(25.0):
+		t.track = float(t.track) + delta
+		if float(t.track) > 0.8:
+			t.track = -99.0
+			add_suspicion(24.0 * float(t.w), "TELL_STARE")
+	t.prev_ang = ang
 	# the music broke off
 	if playing_piano and piano_misses - int(t.misses0) >= 3 and age < 2.0:
 		t.misses0 = 999

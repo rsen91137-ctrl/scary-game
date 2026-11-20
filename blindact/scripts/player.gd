@@ -34,6 +34,7 @@ var cane_enabled := true
 var shake_scale := 1.0
 var breath := 0.0
 var expect_gesture := false
+var eye_h := EYE                # head height (lower when seated)
 
 var _step_t := 0.0
 var _cane_phase := 0.0
@@ -100,10 +101,16 @@ func set_mode(m: String, center_yaw := INF) -> void:
 	match m:
 		"seated":
 			yaw_range = deg_to_rad(105.0)
-			pitch_range = Vector2(-0.55, 0.6)
+			pitch_range = Vector2(-0.65, 0.6)
+			eye_h = 1.18
 		"hidden":
 			yaw_range = deg_to_rad(35.0)
 			pitch_range = Vector2(-0.3, 0.3)
+			eye_h = 1.55
+		"walk":
+			yaw_range = PI
+			pitch_range = Vector2(-1.25, 1.2)
+			eye_h = EYE
 		_:
 			yaw_range = PI
 			pitch_range = Vector2(-1.25, 1.2)
@@ -196,7 +203,7 @@ func _process(delta: float) -> void:
 		_kick += _kick_v * h
 	var moving := mode == "walk" and Vector2(velocity.x, velocity.z).length() > 0.1
 	var bob := sin(_step_t / 0.62 * PI) * 0.018 if moving else 0.0
-	head.position.y = EYE + bob + breath * 0.006
+	head.position.y = eye_h + bob + breath * 0.006
 	head.rotation = Vector3(0.0, yaw, 0.0)
 	cam.rotation = Vector3(pitch + _kick.y * 0.01, _kick.x * 0.01, 0.0)
 	# angular speed of the view (for flinch detection)

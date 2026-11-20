@@ -222,6 +222,55 @@ def handprint():
     T.save(OUT / "handprint.png", np.concatenate([rgb, (a * 0.85)[..., None]], -1))
 
 
+def photos():
+    """Old photographs for the frames: their wedding, her portrait, a dark
+    landscape painting. Blurred, faded, foxed."""
+    def base(seed, tone):
+        n = T.fft_noise(S, S, seed, beta=2.6)
+        img = np.zeros((S, S, 3), np.float32) + np.array(tone)
+        img *= (0.85 + 0.3 * n)[..., None]
+        return img
+    def figure(img, cx, cy, h, col, dress=False, seed=0):
+        yy, xx = np.mgrid[0:S, 0:S].astype(np.float32)
+        head = np.exp(-(((xx - cx) / (h * 0.09)) ** 2 + ((yy - (cy - h * 0.42)) / (h * 0.11)) ** 2))
+        body_w = h * (0.22 if not dress else 0.34)
+        body = np.exp(-(((xx - cx) / body_w) ** 2) * 2.0) * ((yy > cy - h * 0.32) & (yy < cy + h * 0.5))
+        if dress:
+            body *= 1.0 + 0.6 * np.clip((yy - cy) / (h * 0.5), 0, 1)
+        m = np.clip(head + body, 0, 1)
+        m = cv2.GaussianBlur(m.astype(np.float32), (0, 0), 3)
+        img[:] = T.lerp(img, np.array(col), (m * 0.85)[..., None])
+    # wedding: him dark, her pale dress
+    img = base(601, [0.55, 0.47, 0.36])
+    figure(img, 200, 300, 330, [0.1, 0.08, 0.07])
+    figure(img, 310, 310, 300, [0.85, 0.8, 0.7], dress=True)
+    vig = np.exp(-(((np.mgrid[0:S, 0:S][1] - S / 2) / (S * 0.55)) ** 2 + ((np.mgrid[0:S, 0:S][0] - S / 2) / (S * 0.55)) ** 2))
+    img *= (0.35 + 0.65 * vig)[..., None]
+    fox = T.smoothstep(0.7, 0.85, T.fft_noise(S, S, 602, beta=1.6))
+    img = T.lerp(img, np.array([0.45, 0.35, 0.22]), (fox * 0.4)[..., None])
+    T.save(OUT / "photo_wedding.png", np.concatenate([img, np.ones((S, S, 1))], -1))
+    # her portrait
+    img = base(603, [0.42, 0.38, 0.34])
+    figure(img, 256, 330, 520, [0.08, 0.06, 0.06])
+    yy, xx = np.mgrid[0:S, 0:S].astype(np.float32)
+    face = np.exp(-(((xx - 256) / 48.0) ** 2 + ((yy - 140) / 64.0) ** 2))
+    img = T.lerp(img, np.array([0.78, 0.7, 0.62]), (face * 0.9)[..., None])
+    for ex in (236, 276):
+        eye = np.exp(-(((xx - ex) / 7.0) ** 2 + ((yy - 132) / 4.0) ** 2))
+        img = T.lerp(img, np.array([0.05, 0.04, 0.04]), (eye * 0.9)[..., None])
+    img *= (0.35 + 0.65 * vig)[..., None]
+    T.save(OUT / "photo_her.png", np.concatenate([img, np.ones((S, S, 1))], -1))
+    # a dark landscape in oils
+    img = base(604, [0.12, 0.13, 0.1])
+    sky = T.smoothstep(0.55, 0.0, yy / S) * (0.6 + 0.4 * T.fft_noise(S, S, 605, beta=2.0))
+    img = T.lerp(img, np.array([0.35, 0.32, 0.25]), (sky * 0.7)[..., None])
+    hill = (yy / S) > 0.55 + 0.08 * np.sin(xx / S * 6.0)
+    img = T.lerp(img, np.array([0.05, 0.06, 0.04]), (hill * 0.8)[..., None])
+    crack = T.smoothstep(0.48, 0.5, T.fft_noise(S, S, 606, beta=0.5)) * 0.3
+    img *= (1 - crack)[..., None]
+    T.save(OUT / "painting.png", np.concatenate([img, np.ones((S, S, 1))], -1))
+
+
 def main():
     red = [0.62, 0.06, 0.05]
     black = [0.04, 0.04, 0.045]
@@ -243,6 +292,7 @@ def main():
     blot("mold", 502, [0.06, 0.08, 0.05], beta=1.6, thr=(0.5, 0.56), alpha_max=0.9)
     blot("soot", 503, [0.03, 0.03, 0.03], beta=3.0, thr=(0.35, 0.65), alpha_max=0.75)
     handprint()
+    photos()
     print("decals written to", OUT)
 
 

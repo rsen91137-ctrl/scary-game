@@ -60,6 +60,10 @@ var _man_path: Array[Vector3] = []
 var _man_walk_phase := 0.0
 var _man_moving := false
 var _paused := false
+var _flash := 0.0
+var _next_lightning := 18.0
+var _thunder_in := -1.0
+var lightning: SpotLight3D
 
 
 func _ready() -> void:
@@ -87,6 +91,7 @@ func _ready() -> void:
 	player = Player.new()
 	player.name = "Player"
 	add_child(player)
+	player.collision_mask = 1 | 4
 	player.interacted.connect(_on_interact)
 	player.tapped.connect(_on_tap)
 	player.stepped.connect(_on_step)
@@ -119,6 +124,16 @@ func _ready() -> void:
 
 	_setup_audio()
 	_setup_ui()
+	# lightning through the living room window
+	lightning = SpotLight3D.new()
+	lightning.light_color = Color(0.7, 0.78, 1.0)
+	lightning.spot_range = 12.0
+	lightning.spot_angle = 55.0
+	lightning.light_energy = 0.0
+	lightning.shadow_enabled = true
+	lightning.position = Vector3(-3.2, 2.6, 6.0)
+	add_child(lightning)
+	lightning.look_at(Vector3(-3.4, 0.5, 1.5), Vector3.UP)
 	Settings.changed.connect(_apply_settings)
 	_apply_settings()
 	if not _capture:
@@ -130,6 +145,9 @@ func _ready() -> void:
 	if _capture:
 		add_child(load("res://scripts/dev_capture.gd").new())
 		_dev_place()
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--autoplay"):
+			add_child(load("res://scripts/dev_autoplay.gd").new())
 	match start:
 		"stairs":
 			_act_stairs()
@@ -285,6 +303,11 @@ func _make_props() -> void:
 # little async helpers (every sequence carries a generation number; when the
 # night changes course — he knows — older sequences stop at the next await)
 # ---------------------------------------------------------------------------
+func _tr(msg: String) -> void:
+	if OS.get_cmdline_user_args().has("--trace") or OS.get_cmdline_user_args().has("--autoplay"):
+		print("[night] t=%.1f %s  susp=%.0f frame=%.0f  %s" % [_t, msg, state.suspicion, state.frame, state.log_lines])
+
+
 func _alive(g: int) -> bool:
 	return g == _gen and is_inside_tree()
 
@@ -526,7 +549,7 @@ func _act_stairs() -> void:
 	_sfx3d("res://assets/audio/door_creak.ogg", stairs.knock_pos(), -4.0)
 	create_tween().tween_property(hinge, "rotation:y", -1.25, 1.6).set_trans(Tween.TRANS_SINE)
 	man.visible = true
-	man.global_position = stairs.knock_pos() + Vector3(-0.55, -1.0, 0.0)
+	man.global_position = stairs.to_global(Vector3(-StairBuilder.W - 0.35, StairBuilder.H, -1.0))
 	man.look_at(Vector3(player.global_position.x, man.global_position.y, player.global_position.z), Vector3.UP, true)
 	man.set_pose("stand", 0.0)
 	await wait(1.8)
@@ -589,6 +612,7 @@ func _act_flat() -> void:
 		return
 	await man_say("MAN_3", 2.6)
 	hint_once("HINT_PIANO", 6.0)
+	_tr("piece 1")
 	piano_ui.start(PianoGame.gymnopedie())
 	state.playing_piano = true
 	_piano_tests(g, piano_ui.length)
@@ -597,6 +621,7 @@ func _act_flat() -> void:
 		return
 	state.playing_piano = false
 	# the bathroom
+	_tr("to the bathroom")
 	await man_say("MAN_5", 3.4)
 	player.set_mode("walk", player.yaw)
 	man_stand_at(flat.spots.front_inside + Vector3(-0.2, 0.0, 1.0), Vector3(0, 0, 3.0))
@@ -604,12 +629,14 @@ func _act_flat() -> void:
 	await _bathroom_sequence(g)
 	if not _alive(g):
 		return
+	_tr("back to the piano")
 	await man_say("MAN_8", 2.5)
 	await _walk_back_to_piano(g)
 	if not _alive(g):
 		return
 	# second piece: the string, the duet
 	_sit_at_piano()
+	_tr("piece 2")
 	piano_ui.start(PianoGame.prelude())
 	state.playing_piano = true
 	_second_piece(g)
@@ -620,8 +647,9 @@ func _act_flat() -> void:
 	# midnight
 	_sfx3d("res://assets/audio/clock_chime.ogg", flat.spots.clock, 0.0, 4.0)
 	await wait(2.5)
+	_tr("midnight")
 	await man_say("MAN_13", 3.2)
-	player.set_mode("walk", player.yaw)
+	_stand_up()
 	if woman.current == "slump":
 		woman.visible = false
 	await _leaving(g)
@@ -634,6 +662,13 @@ func _sit_at_piano() -> void:
 	player.head.position.y = 1.2
 	player.cane_enabled = false
 	player.set_mode("seated", deg_to_rad(90.0))
+
+
+func _stand_up() -> void:
+	player.global_position = flat.spots.piano_seat + Vector3(0.62, 0.02, 0.0)
+	player.set_mode("walk", player.yaw)
+	player.cane_enabled = true
+	player.set_mode("walk", player.yaw)
 
 
 func man_stand_at(pos: Vector3, face: Vector3) -> void:
@@ -781,6 +816,7 @@ func _bathroom_sequence(g: int) -> void:
 		return
 	state.visual("tub", woman.bone_pos("head"), 3.0, 0.6)
 	await wait(1.5)
+	_tr("in the bathroom")
 	think("THINK_BATH_1", 3.0)
 	await wait(3.2)
 	think("THINK_BATH_2", 3.0)
@@ -798,6 +834,7 @@ func _bathroom_sequence(g: int) -> void:
 		t += 1.0
 	if not _alive(g):
 		return
+	_tr("washing")
 	player.set_mode("locked")
 	player.global_position = flat.spots.sink_stand
 	player.face_point(Vector3(3.0, 1.55, 4.0), 1.0)
@@ -912,13 +949,14 @@ func _second_piece(g: int) -> void:
 	if not _alive(g) or not piano_ui.active:
 		return
 	# the duet: he brings her
+	_tr("duet")
 	await man_say("MAN_10", 3.0)
 	man.visible = false
 	_sfx3d("res://assets/audio/drag.ogg", Vector3(-0.6, 0.5, 3.5), -2.0, 4.0)
 	await wait(3.5)
 	woman.visible = true
 	woman.rotation = Vector3(0, -PI * 0.5, 0)
-	woman.global_position = flat.spots.piano_seat + Vector3(0.0, -0.02, -0.55)
+	woman.global_position = flat.spots.piano_seat + Vector3(0.05, -0.44, -0.55)
 	woman.set_pose("slump", 1.5)
 	man.visible = true
 	man_stand_at(flat.spots.piano_seat + Vector3(1.4, 0.0, 0.4), player.global_position)
@@ -950,6 +988,7 @@ func _leaving(g: int) -> void:
 			break
 	if not _alive(g):
 		return
+	_tr("leaving")
 	await man_say("MAN_14", 2.2)
 	_ending_exit()
 
@@ -1077,6 +1116,17 @@ func _chase_loop(g: int) -> void:
 		if hidden_in == "" and mp.distance_to(pp) < 0.9:
 			_caught(g, "TELL_HEARD" if heard else state.last_reason)
 			return
+
+
+func _he_sees_you() -> bool:
+	var head := man.bone_pos("head")
+	var to_p := player.eye_pos() - head
+	if to_p.length() > 9.0:
+		return false
+	var fwd := man.global_basis.z     # the rig faces +Z
+	if fwd.dot(to_p.normalized()) < 0.2:
+		return false
+	return _line_of_sight(head, player.eye_pos())
 
 
 func _near_hide(mp: Vector3) -> bool:
@@ -1222,10 +1272,8 @@ func _process(delta: float) -> void:
 	ui.eyes(player.eyes_closed, body.pulse)
 	var f := player.focus
 	ui.prompt(tr(String(f.get_meta("interact"))) if f and act != "end" else "")
-	if man.visible and act == "flat":
-		var to_p := (player.eye_pos() - man.bone_pos("head")).normalized()
-		var fwd := -man.global_basis.z
-		state.watched = fwd.dot(to_p) > 0.3 or state.watched
+	if act == "flat" or act == "stairs":
+		state.watched = man.visible and _he_sees_you()
 	# the clock
 	if act == "flat":
 		_clock_t += delta
@@ -1234,6 +1282,20 @@ func _process(delta: float) -> void:
 			clock_player.play()
 		if flat.clock_pendulum:
 			flat.clock_pendulum.rotation.z = sin(_t * PI) * 0.12
+	if act == "flat" or act == "chase" or act == "home":
+		_next_lightning -= delta
+		if _next_lightning <= 0.0:
+			_next_lightning = _rng.randf_range(16.0, 38.0)
+			_flash = 1.0
+			_thunder_in = _rng.randf_range(0.8, 3.0)
+	if _thunder_in > 0.0:
+		_thunder_in -= delta
+		if _thunder_in <= 0.0:
+			_sfx("res://assets/audio/thunder_%d.ogg" % _rng.randi_range(1, 2), -6.0)
+	_flash = maxf(0.0, _flash - delta * 2.4)
+	var fl := _flash * (0.55 + 0.45 * sin(_t * 70.0)) if _flash > 0.35 else _flash
+	lightning.light_energy = fl * 14.0
+	flat.window_mat.set_shader_parameter("flash", fl)
 	flat.window_mat.set_shader_parameter("time_s", _t)
 	stairs.window_mat.set_shader_parameter("time_s", _t)
 	post_mat.set_shader_parameter("sunglasses", sunglasses)
