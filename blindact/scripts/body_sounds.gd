@@ -6,7 +6,7 @@ extends Node
 
 signal beat(strength: float)
 
-var walker: FPWalker
+var walker: Node               # anything with heartbeat_kick(strength)
 var stress := 0.0             # 0 calm .. 1 panic (set by the director)
 var bpm := 68.0
 var pulse := 0.0              # 0..1 envelope for the post shader
@@ -104,8 +104,8 @@ func _lub() -> void:
 	var s := _strength()
 	_play_hb(_lub_streams, lerpf(-9.0, 1.5, clampf(stress, 0.0, 1.0)), _rng.randf_range(0.97, 1.03))
 	pulse = clampf(pulse + 0.55 * s, 0.0, 1.0)
-	if walker:
-		walker.heartbeat_kick(s)
+	if walker and walker.has_method("heartbeat_kick"):
+		walker.call("heartbeat_kick", s)
 	beat.emit(s)
 
 
@@ -113,8 +113,8 @@ func _dub() -> void:
 	var s := _strength() * 0.55
 	_play_hb(_dub_streams, lerpf(-12.0, -1.5, clampf(stress, 0.0, 1.0)), _rng.randf_range(0.97, 1.03))
 	pulse = clampf(pulse + 0.35 * s, 0.0, 1.0)
-	if walker:
-		walker.heartbeat_kick(s * 0.6)
+	if walker and walker.has_method("heartbeat_kick"):
+		walker.call("heartbeat_kick", s * 0.6)
 	beat.emit(s)
 
 

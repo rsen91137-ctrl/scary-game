@@ -118,7 +118,7 @@ func play_fragment() -> float:
 	var kind := _rng.randi() % 7
 	var t := 0.0
 	# A minor / harmonic minor material, an octave chosen at random
-	var root := [45, 50, 52, 57][_rng.randi() % 4]
+	var root: int = [45, 50, 52, 57][_rng.randi() % 4]
 	var scale := [0, 2, 3, 5, 7, 8, 11, 12]
 	match kind:
 		0:  # a half-remembered lullaby phrase that stops in the wrong place

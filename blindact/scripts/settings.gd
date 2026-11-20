@@ -28,6 +28,7 @@ var mic_noise_db := -58.0     # calibrated room noise (dBFS)
 var mic_voice_db := -26.0     # calibrated normal speaking level (dBFS)
 var mic_calibrated := false
 var difficulty := 1           # 0 easy, 1 normal, 2 hard, 3 nightmare
+var mic_this_run := true      # chosen on the calibration screen (not saved)
 
 var mic_player: AudioStreamPlayer
 var mic_capture: AudioEffectCapture

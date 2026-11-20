@@ -35,7 +35,7 @@ func on_note(midi: int, vel: float, broken: String) -> void:
 	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var s := size.y * _rng.randf_range(0.05, 0.09) * (0.8 + 0.4 * vel)
+	var s := size.y * _rng.randf_range(0.1, 0.16) * (0.8 + 0.4 * vel)
 	tr.size = Vector2(s, s)
 	tr.pivot_offset = tr.size * 0.5
 	# higher notes appear further right and higher up

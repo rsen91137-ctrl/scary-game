@@ -16,6 +16,18 @@ R = "#a3120f"   # blood
 S = 'fill="none" stroke="%s" stroke-linecap="round" stroke-linejoin="round"' % C
 
 ICONS = {
+    # 鼠标灵敏度 / Mouse sensitivity
+    "mouse": f'''
+  <rect x="18" y="8" width="28" height="46" rx="14" {S} stroke-width="3.4"/>
+  <path d="M32 8 V24 M18 24 H46" {S} stroke-width="3"/>''',
+    # 字幕 / Subtitles
+    "subtitles": f'''
+  <rect x="6" y="12" width="52" height="38" rx="5" {S} stroke-width="3.4"/>
+  <path d="M14 34 H30 M36 34 H50 M14 42 H24 M30 42 H50" {S} stroke-width="3.2"/>''',
+    # 麦克风 / Microphone
+    "mic": f'''
+  <rect x="23" y="6" width="18" height="32" rx="9" {S} stroke-width="3.4"/>
+  <path d="M14 30 A18 18 0 0 0 50 30 M32 48 V58 M22 58 H42" {S} stroke-width="3.4"/>''',
     # 语言 / Language
     "globe": f'''
   <circle cx="32" cy="32" r="23" {S} stroke-width="3.4"/>

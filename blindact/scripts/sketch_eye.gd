@@ -146,6 +146,10 @@ func _lid(x: float, upper: bool) -> float:
 	return lerpf(up, lo_now + 0.004, smoothstep(0.0, 1.0, blink))
 
 
+func pupil_screen_pos() -> Vector2:
+	return _to_screen(Vector2(gaze.x, 0.11 + gaze.y))
+
+
 func _to_screen(p: Vector2) -> Vector2:
 	var sz := size
 	return Vector2(center.x * sz.x + p.x * unit * sz.y, center.y * sz.y - p.y * unit * sz.y)
@@ -193,6 +197,17 @@ func _stroke(pts: Array[Vector2], width_px: float, col: Color, jitter: float, sa
 	cols.fill(col)
 	var idx := PackedInt32Array(tris)
 	RenderingServer.canvas_item_add_triangle_array(get_canvas_item(), idx, poly, cols)
+
+
+## The long tail of the sketch: a slightly sagging line from the screen
+## edge to the outer corner of the eye.
+func _tail(x_edge: float, y_edge: float, sag: float) -> Array[Vector2]:
+	var out: Array[Vector2] = []
+	var n := 16
+	for i in n:
+		var k := float(i) / float(n)
+		out.append(Vector2(lerpf(x_edge, X_L, k), lerpf(y_edge, Y_L, k) + sag * sin(k * PI) * 8.0))
+	return out
 
 
 func _curve(f: Callable, x0: float, x1: float, n: int) -> Array[Vector2]:
@@ -257,7 +272,7 @@ func _draw() -> void:
 			blot.append(_to_screen(q))
 		else:
 			blot.append(_to_screen(_clip_to_lids(q)))
-	if blot.size() > 3:
+	if blot.size() > 3 and absf(_area(blot)) > 40.0 and not Geometry2D.triangulate_polygon(blot).is_empty():
 		draw_colored_polygon(blot, Color(0.06, 0.0, 0.0, alpha))
 	for k in 5:
 		var sc: Array[Vector2] = []
@@ -279,11 +294,9 @@ func _draw() -> void:
 		var wd := w * (1.25 if pass_i == 0 else 0.55)
 		var cl := ink if pass_i == 0 else faint
 		var off := 0.012 * float(pass_i)
-		var top := _curve(up, X_L, X_R - 0.02, 44)
-		top.push_front(Vector2(x_edge, Y_L + 0.06 + off))
+		var top := _tail(x_edge, Y_L + 0.06 + off, 0.004) + _curve(up, X_L, X_R - 0.02, 44)
 		_stroke(top, wd, cl, 0.022, 200.0 + pass_i * 5.0)
-		var bot := _curve(lo, X_L, X_R - 0.08, 44)
-		bot.push_front(Vector2(x_edge, Y_L - 0.04 - off))
+		var bot := _tail(x_edge, Y_L - 0.04 - off, -0.004) + _curve(lo, X_L, X_R - 0.08, 44)
 		_stroke(bot, wd, cl, 0.022, 220.0 + pass_i * 5.0)
 	# crease above, bag below
 	var crease := func(x: float) -> float: return _lid(x, true) + 0.24 + 0.08 * _bump2((x - X_L) / (X_R - X_L), 0.68, 1.2, 0.8) * (1.0 - blink * 0.5)
@@ -336,6 +349,15 @@ func _draw() -> void:
 				p += Vector2(_rng_det(k * 13 + i + _seed) - 0.5, _rng_det(k * 19 + i * 5 + _seed) - 0.5) * 0.5
 				sc.append(p)
 			_stroke(sc, w * (0.3 + 0.7 * _rng_det(k + _seed)), Color(INK.r, INK.g, INK.b, (0.4 + 0.5 * scribble) * alpha), 0.03, 700.0 + k)
+
+
+static func _area(poly: PackedVector2Array) -> float:
+	var a := 0.0
+	for i in poly.size():
+		var p := poly[i]
+		var q := poly[(i + 1) % poly.size()]
+		a += p.x * q.y - q.x * p.y
+	return a * 0.5
 
 
 func _rng_det(i: int) -> float:

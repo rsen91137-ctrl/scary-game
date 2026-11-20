@@ -15,7 +15,6 @@ var active := false          # true while a sound is going on
 var digital_silence := 0.0   # seconds of exact zeros (no device / muted)
 var enabled := true
 
-const MIN_SOUND := 0.12      # a sound must last this long to count
 
 var _above := 0.0
 var _sound_peak := -90.0
@@ -27,7 +26,10 @@ func threshold_db() -> float:
 	## sensitivity setting (higher sensitivity = lower threshold).
 	var noise := Settings.mic_noise_db
 	var voice := maxf(Settings.mic_voice_db, noise + 8.0)
-	var k := clampf(0.55 - 0.3 * (Settings.mic_sensitivity - 1.0), 0.2, 0.85)
+	# the difficulty sets the base (easy: only screams, nightmare: any sound),
+	# the player's sensitivity setting nudges it
+	var k := float(Difficulty.get_value("mic_k")) - 0.3 * (Settings.mic_sensitivity - 1.0)
+	k = clampf(k, 0.12, 1.6)
 	return maxf(noise + (voice - noise) * k, baseline_db + 6.0)
 
 
@@ -61,7 +63,7 @@ func _process(delta: float) -> void:
 	if level_db > thr:
 		_above += delta
 		_sound_peak = maxf(_sound_peak, level_db)
-		if not active and _above >= MIN_SOUND:
+		if not active and _above >= float(Difficulty.get_value("mic_min_len")):
 			active = true
 			_sound_len = _above
 			sound_started.emit(level_db)

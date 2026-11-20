@@ -227,6 +227,82 @@ def ring():
 
 ALL = {"amb_stair": amb_stair, "drone_eye": drone_eye, "glass_shatter": glass_shatter, "whoosh": whoosh, "ring": ring}
 
+
+def cane_tap():
+    """A white cane tip on concrete: a short dry knock, a few variants."""
+    rng = np.random.default_rng(10)
+    for i in range(1, 5):
+        n = int(0.25 * SR)
+        t = np.arange(n) / SR
+        click = hp(rng.standard_normal(n), 1800) * np.exp(-t / 0.004) * 0.9
+        body = np.sin(2 * np.pi * rng.uniform(900, 1400) * t) * np.exp(-t / 0.012) * 0.5
+        tube = np.sin(2 * np.pi * rng.uniform(2400, 3100) * t) * np.exp(-t / 0.03) * 0.15   # aluminium ring
+        grit = bp(rng.standard_normal(n), 2000, 7000) * np.exp(-t / 0.02) * 0.2
+        write_ogg(f"cane_tap_{i}", click + body + tube + grit, peak_to=0.8)
+
+
+def relay_click():
+    rng = np.random.default_rng(11)
+    n = int(0.3 * SR)
+    t = np.arange(n) / SR
+    x = hp(rng.standard_normal(n), 800) * np.exp(-t / 0.003)
+    x[int(0.035 * SR):] += hp(rng.standard_normal(n - int(0.035 * SR)), 1200) * np.exp(-t[:n - int(0.035 * SR)] / 0.002) * 0.6
+    x += np.sin(2 * np.pi * 100 * t) * np.exp(-t / 0.08) * 0.08     # the bulb's hum starting
+    write_ogg("relay_click", x, peak_to=0.6)
+
+
+def thunder():
+    rng = np.random.default_rng(12)
+    for i in range(1, 3):
+        n = int(7.0 * SR)
+        t = np.arange(n) / SR
+        crack_t = rng.uniform(0.0, 0.3)
+        x = lp(rng.standard_normal(n), 120) * 3.0
+        env = np.exp(-np.clip(t - crack_t, 0, None) / rng.uniform(1.2, 2.2)) * np.clip((t - crack_t) / 0.05, 0, 1)
+        rumble = lp(rng.standard_normal(n), 60) * 2.0
+        roll = 0.6 + 0.4 * np.sin(2 * np.pi * t * rng.uniform(0.8, 1.6)) ** 2
+        y = (x * env + rumble * env * roll)
+        y += bp(rng.standard_normal(n), 300, 2000) * np.exp(-np.clip(t - crack_t, 0, None) / 0.15) * (t > crack_t) * 0.5
+        write_ogg(f"thunder_{i}", stereo(y, lp(y, 900) * 0.9 + y * 0.1), q=3)
+
+
+def door_creak():
+    rng = np.random.default_rng(13)
+    n = int(2.4 * SR)
+    t = np.arange(n) / SR
+    f0 = 180 + 120 * np.sin(2 * np.pi * t / 2.4 * 0.8) + 30 * np.sin(2 * np.pi * 7 * t)
+    ph = np.cumsum(f0) / SR * 2 * np.pi
+    stick = (np.sin(ph) > 0.2).astype(float) * (rng.random(n) < 0.6)
+    x = bp(stick * rng.standard_normal(n), 300, 3000) * 0.5 + np.sin(ph * 3) * 0.08
+    env = np.clip(t / 0.2, 0, 1) * np.clip((2.4 - t) / 0.5, 0, 1)
+    write_ogg("door_creak", x * env)
+
+
+def door_slam():
+    rng = np.random.default_rng(14)
+    n = int(2.0 * SR)
+    t = np.arange(n) / SR
+    x = lp(rng.standard_normal(n), 400) * np.exp(-t / 0.08) * 2.0 + np.sin(2 * np.pi * 70 * t) * np.exp(-t / 0.15)
+    x += bp(rng.standard_normal(n), 1500, 4000) * np.exp(-t / 0.01) * 0.5
+    # far away, up the stairwell: muffled and reverberant
+    ir = rng.standard_normal(int(1.2 * SR)) * np.exp(-np.arange(int(1.2 * SR)) / (0.35 * SR))
+    y = lp(signal.fftconvolve(x, ir)[:n], 900) * 0.3 + lp(x, 600)
+    write_ogg("door_slam", y)
+
+
+def drip():
+    rng = np.random.default_rng(15)
+    n = int(0.5 * SR)
+    t = np.arange(n) / SR
+    f = 1100
+    x = np.sin(2 * np.pi * f * t * (1 + 3 * t)) * np.exp(-t / 0.04)
+    write_ogg("drip", x, peak_to=0.6)
+
+
+ALL.update({"cane_tap": cane_tap, "relay_click": relay_click, "thunder": thunder,
+            "door_creak": door_creak, "door_slam": door_slam, "drip": drip})
+
+
 if __name__ == "__main__":
     names = sys.argv[1:] or list(ALL)
     for nm in names:
