@@ -428,6 +428,13 @@ func _enter_stairs() -> void:
 	amb.play()
 
 
+## His footsteps on the landing wake the nearest sensor lights.
+func _wake_stair_lights(p: Vector3) -> void:
+	for L: SensorLight in stairs.lights:
+		if L.global_position.distance_to(p) < 4.0:
+			L.trigger()
+
+
 ## Wait until the player has climbed `floors_up` storeys of the stairwell.
 func _climb_to(floors_up: float) -> void:
 	var g := _gen
@@ -446,6 +453,7 @@ func _act_climb() -> void:
 	player.set_mode("walk", PI)
 	player.yaw = PI
 	await wait(0.8)
+	_wake_stair_lights(start)
 	ui.fade_to(0.0, 3.0)
 	ui.chapter("CH_1", 2.5)
 	await wait(3.2)
@@ -616,6 +624,7 @@ func _act_return(at_door := false) -> void:
 	player.pitch = 0.0
 	_memory = 0.7
 	create_tween().tween_method(func(v: float) -> void: _memory = v, 0.7, 0.0, 2.6)
+	_wake_stair_lights(_flash_pos)
 	ui.fade_to(0.0, 1.8)
 	if not at_door:
 		ui.chapter("FLASH_NOW", 2.0)
