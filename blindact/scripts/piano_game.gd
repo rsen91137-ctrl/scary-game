@@ -8,6 +8,7 @@ extends Control
 
 signal hit(lane: int)
 signal missed(lane: int)
+signal wrong(lane: int)
 signal stopped
 signal finished
 
@@ -137,6 +138,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	else:
 		# a wrong note: something sour and quiet
 		piano.play(60 + lane * 3 + _rng.randi_range(-1, 1), 0.3, "sour" if _rng.randf() < 0.5 else "")
+		wrong.emit(lane)
 	get_viewport().set_input_as_handled()
 
 

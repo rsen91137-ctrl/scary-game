@@ -131,11 +131,11 @@ func _materials() -> void:
 	_m.coat = _std("velvet", 2.0, Color(0.32, 0.33, 0.36))
 	_m.wood = _std("panel", 1.0)
 	_m.frame = _std("panel", 2.0, Color(0.8, 0.8, 0.82), 0.8)
-	# the piano: black lacquer, the grain just showing through
-	_m.lacquer = _std("panel", 1.2, Color(0.3, 0.3, 0.32), 0.35)
-	_m.lacquer.clearcoat_enabled = true
-	_m.lacquer.clearcoat = 1.0
-	_m.lacquer.clearcoat_roughness = 0.12
+	# the piano: black lacquer, swirl marks, fingermarks, dust on top
+	var lq := ShaderMaterial.new()
+	lq.shader = load("res://shaders/aged_lacquer.gdshader")
+	lq.set_shader_parameter("grain_albedo", _tex("panel_albedo"))
+	_m.lacquer = lq
 	_m.metal = _flat(Color(0.5, 0.52, 0.53), 0.35, 0.9)
 	_m.nickel = _flat(Color(0.52, 0.53, 0.54), 0.38, 1.0)
 	_m.brass = _m.nickel
@@ -411,9 +411,11 @@ func _sconce(parent: Node3D, lname: String, pos: Vector3, energy: float) -> void
 	_lamp(n, lname, Vector3(0.0, 0.05, 0.14), COLD, energy, 3.5, false)
 
 
-func _door(parent: Node3D, id: String, hinge_pos: Vector3, width: float, rot_y: float, closed_angle := 0.0, trim := true, tall := 2.05) -> Node3D:
+## `pivot_off` moves the hinge out of the wall along its normal (negative:
+## to the far face) so a leaf opened past 90 degrees clears the architrave.
+func _door(parent: Node3D, id: String, hinge_pos: Vector3, width: float, rot_y: float, closed_angle := 0.0, trim := true, tall := 2.05, pivot_off := 0.0) -> Node3D:
 	var h := Node3D.new()
-	h.position = hinge_pos
+	h.position = hinge_pos + Basis(Vector3.UP, rot_y) * Vector3(0.0, 0.0, pivot_off)
 	h.rotation.y = rot_y + closed_angle
 	parent.add_child(h)
 	var leaf := _rsolid(h, Vector3(width, tall, 0.045), Vector3(width * 0.5, tall * 0.5, 0.0), _m.wood)
@@ -625,7 +627,13 @@ func _build_piano(p: Node3D) -> void:
 		if not black:
 			var x := -0.68 + white_w * (wi + 0.5)
 			mm.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3(white_w * 0.94, 0.022, 0.15)), Vector3(x, 0.735, 0.22)))
-			mm.set_instance_color(i, Color(0.84, 0.8, 0.7) * (0.85 + 0.15 * fmod(float(k) * 0.37, 1.0)))
+			# cold, greyed ivory; the middle keys worn darker by hands; a few
+			# key tops gone, the bare wood showing
+			var wear := 0.1 * exp(-pow((float(k) - 44.0) / 14.0, 2.0))
+			var c := Color(0.75, 0.78, 0.79) * (0.84 + 0.14 * fmod(float(k) * 0.37, 1.0) - wear)
+			if k in [17, 46, 63]:
+				c = Color(0.2, 0.21, 0.22)
+			mm.set_instance_color(i, c)
 			wi += 1
 		else:
 			var x2 := -0.68 + white_w * wi
@@ -715,7 +723,7 @@ func _bathroom() -> void:
 	add_child(r)
 	_room(r, 0.65, 3.0, 3.4, 5.8, _m.tile, _m.tile_floor, [["x0", 3.7, 4.5, 2.1]])
 	_trims(r, 0.65, 3.0, 3.4, 5.8, [], false, true)
-	_door(r, "bath", Vector3(0.65, 0.0, 3.7), 0.8, -PI * 0.5, -1.2)
+	_door(r, "bath", Vector3(0.65, 0.0, 3.7), 0.8, -PI * 0.5, deg_to_rad(92.0), true, 2.05, -(WT * 0.5 + 0.03))
 	# a clawfoot bathtub along the far wall (z = 5.8), the curtain half drawn
 	var tub := _lathe(r, PackedVector2Array([
 			Vector2(0.0, 0.15), Vector2(0.6, 0.15), Vector2(0.84, 0.17), Vector2(0.93, 0.24), Vector2(0.98, 0.36),
@@ -778,11 +786,11 @@ func _bathroom() -> void:
 	# toilet: bowl, a cracked seat, the cistern on the wall
 	_lathe(r, PackedVector2Array([Vector2(0.0, 0.0), Vector2(0.62, 0.0), Vector2(0.6, 0.12), Vector2(0.72, 0.28), Vector2(0.92, 0.36),
 			Vector2(1.0, 0.4), Vector2(1.0, 0.415), Vector2(0.9, 0.42), Vector2(0.8, 0.4), Vector2(0.55, 0.3), Vector2(0.3, 0.22),
-			Vector2(0.0, 0.2)]), Vector2(0.19, 0.25), 2.2, Vector3(1.2, 0.0, 3.82), _m.enamel, 32, true)
+			Vector2(0.0, 0.2)]), Vector2(0.19, 0.25), 2.2, Vector3(1.75, 0.0, 3.82), _m.enamel, 32, true)
 	_lathe(r, PackedVector2Array([Vector2(0.76, 0.425), Vector2(1.0, 0.425), Vector2(1.03, 0.44), Vector2(0.99, 0.455),
-			Vector2(0.8, 0.455), Vector2(0.75, 0.44), Vector2(0.76, 0.425)]), Vector2(0.19, 0.25), 2.2, Vector3(1.2, 0.0, 3.82), _m.lacquer, 32)
-	_rsolid(r, Vector3(0.42, 0.38, 0.18), Vector3(1.2, 0.64, 3.5), _m.enamel)
-	_rsolid(r, Vector3(0.45, 0.03, 0.2), Vector3(1.2, 0.845, 3.5), _m.enamel, 0.0, false)
+			Vector2(0.8, 0.455), Vector2(0.75, 0.44), Vector2(0.76, 0.425)]), Vector2(0.19, 0.25), 2.2, Vector3(1.75, 0.0, 3.82), _m.lacquer, 32)
+	_rsolid(r, Vector3(0.42, 0.38, 0.18), Vector3(1.75, 0.64, 3.5), _m.enamel)
+	_rsolid(r, Vector3(0.45, 0.03, 0.2), Vector3(1.75, 0.845, 3.5), _m.enamel, 0.0, false)
 	# a towel on a chrome rail, a bath mat
 	_interact(r, "towels", "ACT_SEARCH", Vector3(1.0, 1.2, 5.6), Vector3(0.5, 0.5, 0.3))
 	spots.towels = Vector3(1.0, 1.2, 5.6)

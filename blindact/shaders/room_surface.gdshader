@@ -12,6 +12,9 @@ shader_type spatial;
 //           water runs, mould
 // peel_mask.png: R = patches, G = water-stain rings, B = grime noise.
 // Normal maps may be RG-only (RGTC), so Z is rebuilt here.
+// Close up, a procedural micro relief (paper fibre, plaster grain, glaze
+// ripple, wood pores) takes over where the texels run out; it fades out with
+// distance so it never shimmers.
 
 uniform int kind = 0;
 uniform sampler2D base_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
@@ -36,6 +39,8 @@ uniform float normal_depth = 1.0;
 uniform float tiles_per_repeat = 4.0;
 uniform float seams = 1.0;              // kind 0: wallpaper strips (0 for bare plaster)
 uniform vec2 seed = vec2(0.0);
+uniform float micro = 1.0;              // close-up relief strength
+uniform float cracks = 0.5;             // hairline cracks (plaster, ceilings, tiles)
 
 varying vec3 wpos;
 varying vec3 wnrm;
@@ -49,6 +54,29 @@ float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
 	p3 += dot(p3, p3.yzx + 33.33);
 	return fract((p3.x + p3.y) * p3.z);
+}
+
+float vnoise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	vec2 u = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash12(i), hash12(i + vec2(1.0, 0.0)), u.x),
+			mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+
+// slope of the noise: a bump direction for the micro relief
+vec2 vslope(vec2 p) {
+	const float e = 0.35;
+	return vec2(vnoise(p + vec2(e, 0.0)) - vnoise(p - vec2(e, 0.0)),
+			vnoise(p + vec2(0.0, e)) - vnoise(p - vec2(0.0, e)));
+}
+
+// thin dark lines where a ridged noise peaks: hairline cracks
+float crack_lines(vec2 m, float scale) {
+	float r = 1.0 - abs(vnoise(m * scale) * 2.0 - 1.0);
+	float r2 = 1.0 - abs(vnoise(m * scale * 2.3 + 17.0) * 2.0 - 1.0);
+	float gate = smoothstep(0.55, 0.75, vnoise(m * scale * 0.21 + 3.0));
+	return max(smoothstep(0.965, 0.995, r), smoothstep(0.975, 0.997, r2) * 0.6) * gate;
 }
 
 vec3 unpack_normal(vec3 t) {
@@ -126,6 +154,25 @@ void fragment() {
 			float hsh = hash12(tile + seed * 31.0);
 			float miss_p = (0.015 + 0.12 * low + 0.05 * top) * peel;
 			torn = step(hsh, miss_p);
+			// no two tiles quite alike: glaze shade and gloss vary
+			float th = hash12(tile + seed * 13.0 + 7.3);
+			alb *= 0.93 + 0.12 * th;
+			rg *= 0.75 + 0.5 * hash12(tile + 2.9);
+			// grout darkened with dirt, worst low down
+			vec2 tf = fract(uv * tiles_per_repeat);
+			float edge = min(min(tf.x, 1.0 - tf.x), min(tf.y, 1.0 - tf.y));
+			float grout = 1.0 - smoothstep(0.012, 0.03, edge);
+			alb *= 1.0 - grout * (0.25 + 0.4 * low) * grime;
+			// a few tiles cracked right across
+			if (hash12(tile + 41.0) < 0.07 * cracks + 0.05 * low) {
+				vec2 c = tf - 0.5;
+				float a = hash12(tile + 5.0) * 6.2832;
+				float wob = (vnoise(tf * 7.0 + tile) - 0.5) * 0.08;
+				float d = abs(dot(c, vec2(cos(a), sin(a))) + wob);
+				float line = smoothstep(0.012, 0.0, d);
+				alb *= 1.0 - line * 0.7;
+				rg = mix(rg, 0.8, line);
+			}
 			vec3 ua = texture(under_albedo, um).rgb * under_tint;
 			alb = mix(alb, ua, torn);
 			nu = mix(nb, texture(under_normal, um).rgb, torn);
@@ -141,6 +188,19 @@ void fragment() {
 		float rings = pmA.g * top * 1.3;
 		float wet = clamp((rings + runs * 0.7) * water, 0.0, 1.0);
 		alb = mix(alb, alb * vec3(0.66, 0.55, 0.4), wet);
+		if (kind == 0) {
+			// paper faded unevenly: the pattern washes out in patches
+			float fade = smoothstep(0.35, 0.8, pmB.g) * (1.0 - torn) * seams;
+			float lum = dot(alb, vec3(0.3, 0.59, 0.11));
+			alb = mix(alb, vec3(lum) * vec3(0.95, 1.0, 1.03) * 1.08, fade * 0.45);
+			// where hands and shoulders brushed along it for years
+			float band = smoothstep(0.75, 1.05, hy) * smoothstep(1.65, 1.25, hy);
+			alb *= 1.0 - band * smoothstep(0.35, 0.8, pmA.b) * 0.22 * grime;
+		}
+		// hairline cracks in bare plaster
+		float ck = crack_lines(m + seed, 2.2) * cracks * (1.0 - seams * (1.0 - torn));
+		alb *= 1.0 - ck * 0.55;
+		ao *= 1.0 - ck * 0.3;
 		// grime and scuffs along the floor
 		float gr = low * (0.5 + 0.5 * pmA.b) * grime;
 		alb = mix(alb, alb * vec3(0.5, 0.46, 0.4), gr);
@@ -157,6 +217,10 @@ void fragment() {
 		alb = mix(alb, alb * vec3(0.6, 0.56, 0.5), dirt * 0.5);
 		float ring = pmA.g * water * 0.8;
 		alb = mix(alb, alb * vec3(0.7, 0.6, 0.5), clamp(ring, 0.0, 1.0));
+		// damp patches: darker, and glossy enough to hold a lamp's reflection
+		float damp = smoothstep(0.6, 0.72, texture(peel_mask, m * 0.33 + seed + 0.71).g) * water;
+		alb *= 1.0 - damp * 0.3;
+		rg = mix(rg, 0.12, damp * 0.85);
 	} else {
 		float big = texture(peel_mask, m * 0.21 + seed + 0.11).g;
 		float ring = clamp(big * 1.6 * water, 0.0, 1.0);
@@ -168,6 +232,8 @@ void fragment() {
 		alb = mix(alb, texture(under_albedo, um).rgb * under_tint, peeled);
 		nu = mix(nb, texture(under_normal, um).rgb, peeled);
 		ao *= 1.0 - (smoothstep(0.5, 0.62, raw) - peeled) * 0.5;
+		float ck = crack_lines(m + seed, 1.6) * cracks;
+		alb *= 1.0 - ck * 0.6;
 	}
 	ALBEDO = alb;
 	ROUGHNESS = rg;
@@ -175,6 +241,14 @@ void fragment() {
 	AO_LIGHT_AFFECT = 0.3;
 	vec3 tn = unpack_normal(nu);
 	tn.xy *= normal_depth;
+	// micro relief, only close to the eye
+	float near = clamp(1.0 - length(VERTEX) / 3.5, 0.0, 1.0);
+	if (near > 0.0 && micro > 0.0) {
+		float sc = kind == 0 ? 260.0 : (kind == 2 ? 120.0 : (kind == 3 ? 40.0 : 200.0));
+		float amt = kind == 0 ? 0.35 : (kind == 2 ? 0.5 : (kind == 3 ? 0.12 : 0.3));
+		vec2 g = vslope(m * sc) + 0.5 * vslope(m * sc * 2.7 + 9.0);
+		tn.xy += g * amt * micro * near;
+	}
 	vec3 wn = normalize(T * tn.x + U * tn.y + n * tn.z);
 	NORMAL = normalize((VIEW_MATRIX * vec4(wn, 0.0)).xyz);
 }

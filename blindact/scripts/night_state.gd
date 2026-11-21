@@ -26,6 +26,8 @@ var last_reason := ""
 var mic_history := PackedFloat32Array()
 var playing_piano := false
 var piano_misses := 0            # misses since the last test began
+var scare_until := -1.0          # after a scare your hands give you away
+var _err_in_window := 0
 
 var _tests: Array = []           # dicts
 var _t := 0.0
@@ -42,6 +44,7 @@ func max_suspicion() -> float:
 
 
 func visual(id: String, pos: Vector3, window := 2.5, weight := 1.0) -> void:
+	scare_window(window + 1.0)
 	var to := (pos - player.eye_pos()).normalized()
 	_tests.append({"kind": "visual", "id": id, "pos": pos, "t0": _t, "window": window, "w": weight,
 		"fix": 0.0, "flinched": false, "ang0": player.look_dir().angle_to(to), "misses0": piano_misses,
@@ -56,6 +59,30 @@ func sound(id: String, pos: Vector3, window := 2.4, weight := 1.0) -> void:
 
 func end_tests() -> void:
 	_tests.clear()
+
+
+## For `secs` from now, playing out of order at the piano is a tell.
+func scare_window(secs: float) -> void:
+	if _t > scare_until:
+		_err_in_window = 0
+	scare_until = maxf(scare_until, _t + secs)
+
+
+## A wrong key or a missed note. Right after a scare a pianist's hands that
+## suddenly lose their order mean he saw something; otherwise it costs little.
+func piano_error(kind: String) -> void:
+	if kind == "miss":
+		piano_misses += 1
+	if not playing_piano or exposed_flag:
+		return
+	if _t < scare_until:
+		_err_in_window += 1
+		add_suspicion(7.0 + 2.0 * minf(_err_in_window, 4.0), "TELL_FUMBLE")
+	else:
+		# sloppy playing alone makes him wary, never certain
+		var room := max_suspicion() * 0.45 - suspicion
+		if room > 0.0:
+			add_suspicion(minf(1.5, room / float(Difficulty.get_value("suspicion_gain"))), "TELL_SLIP")
 
 
 func add_suspicion(amount: float, reason: String) -> void:
@@ -149,10 +176,7 @@ func _judge_visual(t: Dictionary, age: float, delta: float) -> void:
 			t.track = -99.0
 			add_suspicion(24.0 * float(t.w), "TELL_STARE")
 	t.prev_ang = ang
-	# the music broke off
-	if playing_piano and piano_misses - int(t.misses0) >= 3 and age < 2.0:
-		t.misses0 = 999
-		add_suspicion(16.0 * float(t.w), "TELL_FUMBLE")
+	# (playing out of order right after it is judged in piano_error)
 
 
 func _judge_sound(t: Dictionary, age: float) -> void:

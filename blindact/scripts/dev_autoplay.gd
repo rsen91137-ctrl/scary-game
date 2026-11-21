@@ -73,7 +73,7 @@ func _process(delta: float) -> void:
 						p.global_position = Vector3(0.0, 0.05, 3.25)
 					elif _act_t > 0.0 and _did.has("to_bath") and not _did.has("in_bath") and p.global_position.z > 3.0:
 						_did["in_bath"] = true
-						p.global_position = Vector3(1.6, 0.05, 4.2)
+						p.global_position = Vector3(1.2, 0.05, 4.35)
 					elif _did.has("in_bath") and fmod(_act_t, 1.0) < get_process_delta_time():
 						p.interacted.emit("cabinet")
 						p.interacted.emit("sink")

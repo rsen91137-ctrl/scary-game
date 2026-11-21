@@ -17,6 +17,7 @@ var _hint: Label
 var _hint_t := 0.0
 var _hint_box: Panel
 var _objective: Label
+var _meter: SuspicionMeter
 var _prompt: Label
 var _eyes: ColorRect
 var _rec: Label
@@ -70,6 +71,14 @@ func _ready() -> void:
 	# the objective, always in the corner
 	_objective = _mk_label(22, Color(0.78, 0.85, 0.9, 0.9), 0.02, 0.5, 0.88, 0.95)
 	_objective.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	# how sure he is that you can see (shown once he is around)
+	_meter = SuspicionMeter.new()
+	_meter.anchor_left = 1.0
+	_meter.anchor_right = 1.0
+	_meter.offset_left = -340.0
+	_meter.offset_top = 18.0
+	_meter.visible = false
+	add_child(_meter)
 	_prompt = _mk_label(22, Color(0.85, 0.82, 0.78, 0.85), 0.35, 0.65, 0.58, 0.63)
 	_fake = _mk_label(56, Color(1.0, 0.15, 0.1), 0.2, 0.8, 0.62, 0.74)
 	_fake.visible = false
@@ -137,6 +146,18 @@ func hint_hold(line_key: String) -> void:
 func hint_clear() -> void:
 	if _hint_t > 0.8:
 		_hint_t = 0.8
+
+
+func show_meter(on: bool) -> void:
+	_meter.visible = on
+
+
+func suspicion(frac: float) -> void:
+	_meter.set_value(frac)
+
+
+func tell(kind: String, amount: float) -> void:
+	_meter.notice(kind, amount)
 
 
 ## The current goal, shown in the corner until changed ("" hides it).
@@ -305,6 +326,7 @@ func show_end(title_key: String, body_key: String, why := "", graph := PackedFlo
 	_graph_data = graph
 	_graph_thr = thr
 	_graph.visible = graph.size() > 2
+	_meter.visible = false
 	_end.visible = true
 	_end.modulate.a = 0.0
 	create_tween().tween_property(_end, "modulate:a", 1.0, 1.5)

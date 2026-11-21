@@ -522,6 +522,8 @@ def build(who: str):
             print(f"{who}: cornea {corn.sum()} faces, eyeball {(~corn).sum()}")
 
     blender_export(who, [body] + parts, sk, joint)
+    if who == "woman":
+        export_head(who, ctx, body, all_q, all_uv, parts)
 
 
 # ---------------------------------------------------------------------------
@@ -975,6 +977,121 @@ def blender_export(who, parts, sk, joint):
     bpy.ops.export_scene.gltf(filepath=str(path), export_format="GLB", export_skins=True,
                               export_animations=False, export_yup=True, export_apply=True,
                               export_materials="PLACEHOLDER", export_all_influences=False)
+    print("wrote", path)
+
+
+# ---------------------------------------------------------------------------
+# her head on its own (for the piano): cut at the neck, the stump capped
+# ---------------------------------------------------------------------------
+def export_head(who, ctx, body, all_q, all_uv, parts):
+    y_cut = ctx["neck"][1] + 0.035
+    centre = np.array([0.0, ctx["head"][1] + 0.06, ctx["head"][2] + 0.02])
+    P = body["P"]
+    keep = np.all(P[all_q][:, :, 1] > y_cut, axis=1)
+    hq = all_q[keep]
+    huv = all_uv[keep]
+    out = [{"part": "body", "P": P - centre, "quads": hq, "fuv": huv, "VT": body["VT"]}]
+    # the open neck: boundary edges near the cut, chained into loops, capped
+    from collections import defaultdict
+    cnt = defaultdict(int)
+    for f in hq:
+        for k in range(4):
+            e = (int(f[k]), int(f[(k + 1) % 4]))
+            cnt[(min(e), max(e))] += 1
+    near = P[:, 1] < y_cut + 0.04
+    edges = [e for e, c in cnt.items() if c == 1 and near[e[0]] and near[e[1]]]
+    adj = defaultdict(list)
+    for a_, b_ in edges:
+        adj[a_].append(b_)
+        adj[b_].append(a_)
+    seen = set()
+    cap_v = []
+    cap_f = []
+    for start in list(adj):
+        if start in seen:
+            continue
+        loop = [start]
+        seen.add(start)
+        prev, cur = None, start
+        while True:
+            nxt = [n for n in adj[cur] if n != prev and n not in seen]
+            if not nxt:
+                break
+            prev, cur = cur, nxt[0]
+            seen.add(cur)
+            loop.append(cur)
+        if len(loop) < 6:
+            continue
+        pts = P[loop] - centre
+        c = pts.mean(0) + np.array([0.0, -0.004, 0.0])
+        base = len(cap_v)
+        cap_v.append(c)
+        cap_v.extend(list(pts))
+        for i in range(len(loop)):
+            j = (i + 1) % len(loop)
+            cap_f.append([base, base + 1 + i, base + 1 + j, base])
+    if cap_v:
+        cv = np.array(cap_v)
+        cf = np.array(cap_f, np.int64)
+        out.append({"part": "stump", "P": cv, "quads": cf, "fuv": np.zeros_like(cf), "VT": np.array([[0.5, 0.5]])})
+    for p in parts:
+        if p["part"] in ("cloth", "shoes"):
+            continue
+        q = p["quads"]
+        if p["part"] == "hair":
+            q = q[np.any(p["P"][q][:, :, 1] > y_cut + 0.02, axis=1)]
+            fuv = p["fuv"][np.any(p["P"][p["quads"]][:, :, 1] > y_cut + 0.02, axis=1)]
+        else:
+            fuv = p["fuv"]
+        out.append({"part": p["part"], "P": p["P"] - centre, "quads": q, "fuv": fuv, "VT": p["VT"]})
+    blender_export_static(f"{who}_head", who, out)
+
+
+def blender_export_static(fname, who, parts):
+    import bpy
+
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+
+    def b(v):
+        return (float(v[0]), float(-v[2]), float(v[1]))
+
+    for p in parts:
+        name = f"{who}_{p['part']}"
+        quads = p["quads"]
+        used = np.unique(quads)
+        rm = -np.ones(len(p["P"]), np.int64)
+        rm[used] = np.arange(len(used))
+        verts = p["P"][used]
+        fq = rm[quads]
+        faces = []
+        for f in fq:
+            f = list(map(int, f))
+            if f[3] == f[0] or f[3] == f[2]:
+                f = f[:3]
+            faces.append(f)
+        me = bpy.data.meshes.new(name)
+        me.from_pydata([b(v) for v in verts], [], faces)
+        me.update()
+        uvl = me.uv_layers.new(name="UVMap")
+        loop_uv = []
+        for f_src, f in zip(p["fuv"], faces):
+            for k in range(len(f)):
+                loop_uv.append(p["VT"][int(f_src[k])])
+        uvl.data.foreach_set("uv", np.array(loop_uv, np.float32).ravel())
+        me.polygons.foreach_set("use_smooth", np.ones(len(me.polygons), bool))
+        me.materials.append(bpy.data.materials.new(name))
+        ob = bpy.data.objects.new(name, me)
+        bpy.context.collection.objects.link(ob)
+        if p["part"] == "body":
+            sub = ob.modifiers.new("Subdivision", "SUBSURF")
+            sub.levels = 1
+            sub.render_levels = 1
+            sub.uv_smooth = "PRESERVE_BOUNDARIES"
+        print(f"  blender {name}: {len(verts)} verts, {len(faces)} faces")
+    path = OUT_M / f"{fname}.glb"
+    bpy.ops.export_scene.gltf(filepath=str(path), export_format="GLB", export_skins=False,
+                              export_animations=False, export_yup=True, export_apply=True,
+                              export_materials="PLACEHOLDER")
     print("wrote", path)
 
 

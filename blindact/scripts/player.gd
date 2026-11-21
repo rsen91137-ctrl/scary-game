@@ -29,6 +29,12 @@ var speed := 1.05
 var eyes_closed := false
 var can_close_eyes := true
 var ang_speed := 0.0           # smoothed camera angular speed (rad/s)
+var _view_from := Vector2.ZERO
+var _view_to := Vector2.ZERO
+var _view_t := 1.0
+var _view_len := 1.0
+var _step_n := 0
+var _eye_cur := EYE
 var focus: Area3D              # interactable under the crosshair
 var cane_enabled := true
 var shake_scale := 1.0
@@ -126,8 +132,23 @@ func set_mode(m: String, center_yaw := INF) -> void:
 	cane.visible = m == "walk" and cane_enabled
 
 
+func snap_eye() -> void:
+	_eye_cur = eye_h
+
+
 func heartbeat_kick(strength: float) -> void:
 	_kick_v += Vector2(_rng.randf_range(-1.0, 1.0) * 0.4, -1.0) * strength * 0.8 * shake_scale
+
+
+## Turn the view to look at `p` over `secs`, easing in and out (the game
+## turning your head for you; not counted as your own jerk of the head).
+func look_toward(p: Vector3, secs := 0.6) -> void:
+	var d := p - eye_pos()
+	_view_from = Vector2(yaw, pitch)
+	_view_to = Vector2(yaw + wrapf(atan2(-d.x, -d.z) - yaw, -PI, PI),
+			clampf(atan2(d.y, Vector2(d.x, d.z).length()), pitch_range.x, pitch_range.y))
+	_view_len = maxf(secs, 0.01)
+	_view_t = 0.0
 
 
 ## For cutscenes: look at a world point over time (mode locked keeps it).
@@ -179,8 +200,11 @@ func _physics_process(delta: float) -> void:
 	input = input.limit_length(1.0)
 	var dir := (Basis(Vector3.UP, yaw) * Vector3(input.x, 0.0, input.y))
 	var sp := speed * (0.55 if eyes_closed else 1.0)
-	velocity.x = dir.x * sp
-	velocity.z = dir.z * sp
+	var want := Vector2(dir.x, dir.z) * sp
+	var cur := Vector2(velocity.x, velocity.z)
+	cur = cur.move_toward(want, (7.0 if want.length() > cur.length() else 10.0) * delta)
+	velocity.x = cur.x
+	velocity.z = cur.y
 	if not is_on_floor():
 		velocity.y -= 9.8 * delta
 	else:
@@ -192,6 +216,7 @@ func _physics_process(delta: float) -> void:
 		_step_t += delta
 		if _step_t > step_len:
 			_step_t = 0.0
+			_step_n += 1
 			stepped.emit(global_position)
 		# pushing but not moving for a while: something holds us; step free
 		if global_position.distance_to(_last_pos) < 0.004:
@@ -215,6 +240,11 @@ func _process(delta: float) -> void:
 	if mode == "seated" or mode == "hidden" or mode == "still":
 		var dy := wrapf(yaw - yaw_center, -PI, PI)
 		yaw = yaw_center + clampf(dy, -yaw_range, yaw_range)
+	if _view_t < 1.0:
+		_view_t = minf(1.0, _view_t + delta / _view_len)
+		var vk := smoothstep(0.0, 1.0, _view_t)
+		yaw = lerpf(_view_from.x, _view_to.x, vk)
+		pitch = lerpf(_view_from.y, _view_to.y, vk)
 	pitch = clampf(pitch, pitch_range.x, pitch_range.y)
 	# heartbeat kick spring (sub-stepped)
 	var k := 220.0
@@ -229,12 +259,21 @@ func _process(delta: float) -> void:
 		var ph := clampf(_step_t / step_len, 0.0, 1.0)
 		# on the stairs every stride lifts you a riser: rise, then settle
 		bob = (sin(ph * PI) * 0.032 - 0.012) if on_stairs else sin(ph * PI) * 0.018
-	head.position.y = eye_h + bob + breath * 0.006
+	# sitting down and getting up ease the eye height
+	_eye_cur = lerpf(_eye_cur, eye_h, 1.0 - exp(-5.0 * delta))
+	head.position.y = _eye_cur + bob + breath * 0.006
 	head.rotation = Vector3(0.0, yaw, 0.0)
-	cam.rotation = Vector3(pitch + _kick.y * 0.01, _kick.x * 0.01, 0.0)
+	# the head rolls a touch from foot to foot as you walk
+	var roll := 0.0
+	if moving:
+		var sp_k := clampf(Vector2(velocity.x, velocity.z).length() / 1.4, 0.0, 1.0)
+		roll = sin((float(_step_n) + clampf(_step_t / step_len, 0.0, 1.0)) * PI) * 0.0045 * sp_k
+	cam.rotation = Vector3(pitch + _kick.y * 0.01, _kick.x * 0.01, roll)
 	# angular speed of the view (for flinch detection)
 	var dirv := look_dir()
 	var a := _prev_dir.angle_to(dirv) / maxf(delta, 0.001)
+	if _view_t < 1.0:
+		a = 0.0
 	ang_speed = lerpf(ang_speed, a, 1.0 - exp(-delta * 18.0))
 	_prev_dir = dirv
 	_update_focus()
