@@ -609,7 +609,7 @@ func _lift_handset() -> void:
 	_cord.material_override = flat._m.bakelite
 	add_child(_cord)
 	# at the ear: the grip runs from the mouth (lower right of the view) up past the cheek
-	var ear := Transform3D(Basis(Vector3(0.0, 0.857, 0.514), Vector3(1.0, 0.0, 0.0), Vector3(0.0, 0.514, -0.857)), Vector3(0.11, -0.075, -0.085))
+	var ear := Transform3D(Basis(Vector3(0.37, 0.56, 0.74), Vector3(0.929, -0.223, -0.295), Vector3(0.0, 0.796, -0.603)), Vector3(0.09, -0.04, -0.11))
 	var tw := create_tween()
 	tw.tween_property(fp, "transform", ear, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	await tw.finished
