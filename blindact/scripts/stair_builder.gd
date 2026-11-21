@@ -16,6 +16,7 @@ const RUN := 0.28
 const ZH := ZL + (NRISE - 1) * RUN   # half landing edge
 const Z1 := ZH + 1.25    # far wall
 const SLAB := 0.17
+const STEP_D := 0.32      # the stair body below each tread (down to the soffit, not the landing)
 const WALL_T := 0.2
 
 var floors: Array[Node3D] = []
@@ -208,8 +209,9 @@ func _build_floor(f: Node3D, k: int) -> void:
 		sa_.material_override = _mats.step
 		sa_.position = Vector3(-GAP - fw * 0.5, top - r, za)
 		f.add_child(sa_)
-		if top - r > 0.01:
-			_box(f, Vector3(fw, top - r, RUN), Vector3(-GAP - fw * 0.5, (top - r) * 0.5, za + RUN * 0.5), _mats.step)
+		# the body under the step reaches the sloped soffit below, no further
+		# (filling down to the landing made a 1.45 m ceiling over the flight below)
+		_box(f, Vector3(fw, STEP_D + r, RUN), Vector3(-GAP - fw * 0.5, top - r - (STEP_D + r) * 0.5, za + RUN * 0.5), _mats.step)
 		var zb := ZH - i * RUN
 		var sb_ := MeshInstance3D.new()
 		sb_.mesh = MeshUtil.worn_step(fw, r, RUN, k * 100 + 50 + i)
@@ -217,15 +219,16 @@ func _build_floor(f: Node3D, k: int) -> void:
 		sb_.position = Vector3(GAP + fw * 0.5, H * 0.5 + top - r, zb)
 		sb_.rotation.y = PI
 		f.add_child(sb_)
-		if top - r > 0.01:
-			_box(f, Vector3(fw, top - r, RUN), Vector3(GAP + fw * 0.5, H * 0.5 + (top - r) * 0.5, zb - RUN * 0.5), _mats.step)
-	# sloped soffits under the flights (seen from the landing below)
-	var slope_len := sqrt(pow(ZH - ZL, 2.0) + pow(H * 0.5, 2.0))
-	var ang := atan2(H * 0.5, ZH - ZL)
-	var sa := _box(f, Vector3(fw, SLAB, slope_len), Vector3(-GAP - fw * 0.5, H * 0.25 - 0.16, (ZL + ZH) * 0.5), _mats.concrete)
-	sa.rotation.x = -ang
-	var sb := _box(f, Vector3(fw, SLAB, slope_len), Vector3(GAP + fw * 0.5, H * 0.75 - 0.16, (ZL + ZH) * 0.5), _mats.concrete)
-	sb.rotation.x = ang
+		_box(f, Vector3(fw, STEP_D + r, RUN), Vector3(GAP + fw * 0.5, H * 0.5 + top - r - (STEP_D + r) * 0.5, zb - RUN * 0.5), _mats.step)
+	# smooth sloped soffits under the flights, just below the step bodies:
+	# their top runs through the bodies' lower corners (y = tread base - rise - STEP_D)
+	var sl := sqrt(pow(ZH - ZL, 2.0) + pow((NRISE - 1) * r, 2.0))
+	var a := atan2(r, RUN)
+	var y_mid := 3.0 * r - STEP_D
+	var sa := _box(f, Vector3(fw, SLAB, sl), Vector3(-GAP - fw * 0.5, y_mid - SLAB * 0.5 * cos(a), (ZL + ZH) * 0.5 + SLAB * 0.5 * sin(a)), _mats.concrete)
+	sa.rotation.x = -a
+	var sb := _box(f, Vector3(fw, SLAB, sl), Vector3(GAP + fw * 0.5, H * 0.5 + y_mid - SLAB * 0.5 * cos(a), (ZL + ZH) * 0.5 - SLAB * 0.5 * sin(a)), _mats.concrete)
+	sb.rotation.x = a
 	# walls (the far wall has the window opening at the half landing)
 	var hz := Z1 - Z0 + 2 * WALL_T
 	var zc := (Z0 + Z1) * 0.5

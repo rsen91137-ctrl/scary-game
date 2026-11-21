@@ -4,7 +4,7 @@ extends Node
 ## stares — while a broken piano plays (every note appears on screen) and a
 ## man whispers (every word seeps up in red). Over it: difficulty ->
 ## microphone calibration. Then the eye swells, the
-## picture shatters like glass and the night begins.
+## pupil swallows the screen, and the night begins in the dark.
 
 const GAME_SCENE := "res://scenes/game.tscn"
 const MENU_SCENE := "res://scenes/main_menu.tscn"
@@ -21,7 +21,7 @@ var whispers: WhisperPlayer
 var mic: MicMonitor
 var body: BodySounds
 var ui: PregameUI
-var shatter: ShatterFX
+var _left := false
 var drone: AudioStreamPlayer
 var sfx: AudioStreamPlayer
 var eye_layer: CanvasLayer
@@ -97,8 +97,6 @@ func _ready() -> void:
 	var top := CanvasLayer.new()
 	top.layer = 20
 	add_child(top)
-	shatter = ShatterFX.new()
-	top.add_child(shatter)
 
 	mic = MicMonitor.new()
 	add_child(mic)
@@ -124,7 +122,6 @@ func _ready() -> void:
 	ui.calibration_done.connect(_on_calibrated)
 	ui.story_finished.connect(_start_zoom)
 	ui.control_focused.connect(func(c: Control) -> void: _look_target = c)
-	shatter.finished.connect(_on_shattered)
 	Settings.changed.connect(_apply_settings)
 	_apply_settings()
 
@@ -221,22 +218,11 @@ func _start_zoom() -> void:
 	_sfx("res://assets/audio/whoosh.ogg", -6.0, 0.6)
 
 
-func _do_shatter() -> void:
-	state = "shatter"
-	await RenderingServer.frame_post_draw
-	var img := get_viewport().get_texture().get_image()
-	var tex := ImageTexture.create_from_image(img)
-	eye_layer.visible = false
-	fx_layer.visible = false
-	var pupil_px := eye.pupil_screen_pos()
-	shatter.shatter(tex, pupil_px / get_viewport().get_visible_rect().size)
-	_sfx("res://assets/audio/glass_shatter.ogg", 0.0)
+func _go_to_game() -> void:
 	drone.stop()
 	body.enabled = false
-
-
-func _on_shattered() -> void:
-	await get_tree().create_timer(0.4).timeout
+	piano.stop_all(0.3)
+	await get_tree().create_timer(0.35).timeout
 	var ps: PackedScene = null
 	for path: String in PRELOAD:
 		if ResourceLoader.load_threaded_get_status(path) == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
@@ -287,7 +273,7 @@ func _start_episode(name: String) -> void:
 
 
 func _update_episodes(delta: float) -> void:
-	if state == "zoom" or state == "shatter":
+	if state == "zoom":
 		return
 	if episode == "":
 		next_episode -= delta
@@ -343,7 +329,7 @@ func _process(delta: float) -> void:
 
 	# idle life: blinks, little glances (often at the option you are on)
 	next_blink -= delta
-	if next_blink <= 0.0 and state != "shatter":
+	if next_blink <= 0.0 and state != "zoom":
 		eye.do_blink(_rng.randf_range(0.18, 0.3), 0.0 if _rng.randf() < 0.8 else _rng.randf_range(0.2, 0.8))
 		next_blink = _rng.randf_range(2.0, 6.5)
 	next_glance -= delta
@@ -357,7 +343,7 @@ func _process(delta: float) -> void:
 		eye.bleed = maxf(0.0, eye.bleed - delta * 0.12)
 
 	# sound
-	if state != "zoom" and state != "shatter":
+	if state != "zoom":
 		next_piano -= delta
 		if next_piano <= 0.0:
 			next_piano = piano.play_fragment() + _rng.randf_range(1.5, 5.0)
@@ -396,12 +382,16 @@ func _process(delta: float) -> void:
 	if state == "zoom":
 		zoom_t += delta
 		var k := clampf(zoom_t / 2.6, 0.0, 1.0)
-		zoom = pow(k, 2.2) * 6.0
+		zoom = pow(k, 2.2) * 9.0
 		trem = k * 0.8
 		eye.pupil_target = lerpf(0.5, 1.0, k)
 		eye.tremble = k
-		if zoom_t >= 2.6:
-			_do_shatter()
+		# the pupil swallows the screen: into the black, and the night begins
+		fade = maxf(fade, smoothstep(1.5, 2.6, zoom_t))
+		fade_target = fade
+		if zoom_t >= 2.75 and not _left:
+			_left = true
+			_go_to_game()
 	post_mat.set_shader_parameter("stretch", stretch)
 	post_mat.set_shader_parameter("stretch_center", pupil_frac())
 	post_mat.set_shader_parameter("melt", melt)
