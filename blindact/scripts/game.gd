@@ -1141,6 +1141,20 @@ var _nav_ready := false
 
 
 ## The walkable floor of the flat, from its colliders, for nav_path().
+func _nav_probe() -> void:
+	var pairs := [[flat.spots.armchair + Vector3(0.36, 0, 0.21), MAN_WATCH], [MAN_WATCH, Vector3(-0.32, 0, 4.85)],
+		[Vector3(-0.32, 0, 4.85), Vector3(0.85, 0, 4.3)], [Vector3(0.85, 0, 4.3), flat.spots.armchair],
+		[flat.spots.piano_seat + Vector3(0.6, 0, 0.7), Vector3(0.0, 0.0, 2.6)], [Vector3(0, 0, 2.0), Vector3(1.3, 0, 7.5)]]
+	for pr: Array in pairs:
+		var path := nav_path(pr[0], pr[1])
+		var length := 0.0
+		var prev: Vector3 = pr[0]
+		for q: Vector3 in path:
+			length += prev.distance_to(q)
+			prev = q
+		print("NAV %s -> %s : %d pts, %.2f m (straight %.2f)" % [pr[0], pr[1], path.size(), length, (pr[0] as Vector3).distance_to(pr[1])])
+
+
 func _bake_nav() -> void:
 	var map := get_world_3d().navigation_map
 	NavigationServer3D.map_set_cell_size(map, 0.05)
@@ -1161,9 +1175,18 @@ func _bake_nav() -> void:
 	add_child(_nav_region)
 	_nav_region.bake_navigation_mesh(true)
 	await _nav_region.bake_finished
-	await get_tree().physics_frame
-	await get_tree().physics_frame
+	# the server folds the new mesh into the map in the background: wait for it
+	var probe: Vector3 = flat.spots.hall_mid
+	for i in 120:
+		await get_tree().physics_frame
+		if NavigationServer3D.map_get_closest_point(map, probe).distance_to(probe) < 0.4:
+			break
 	_nav_ready = true
+	if OS.get_cmdline_user_args().has("--navprobe"):
+		print("NAVMESH polys=%d verts=%d map_active=%s regions=%d closest=%s" % [nm.get_polygon_count(), nm.get_vertices().size(),
+			NavigationServer3D.map_is_active(map), NavigationServer3D.map_get_regions(map).size(),
+			NavigationServer3D.map_get_closest_point(map, Vector3(0, 0, 2))])
+		_nav_probe()
 
 
 ## A way across the floor from `from` to `to` (corners only, `to` last).
