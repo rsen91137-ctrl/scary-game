@@ -33,6 +33,7 @@ var his_head := Vector3.INF      # where his eyes are (INF: he is not there)
 var comp_until := -1.0           # a scare just hit: your composure is being judged
 var mic_gate_until := -1.0       # the game's own stinger in your microphone is not you
 var _comp_w := 1.0
+var _fumble_w := 1.0            # how much a slip at the keys costs in this window
 var _comp_t0 := 0.0
 var _comp_flinched := false
 var _comp_froze := false
@@ -76,9 +77,12 @@ func end_tests() -> void:
 
 
 ## For `secs` from now, playing out of order at the piano is a tell.
-func scare_window(secs: float) -> void:
+func scare_window(secs: float, w := 1.0) -> void:
 	if _t > scare_until:
 		_err_in_window = 0
+		_fumble_w = w
+	else:
+		_fumble_w = maxf(_fumble_w, w)
 	scare_until = maxf(scare_until, _t + secs)
 
 
@@ -91,7 +95,7 @@ func piano_error(kind: String) -> void:
 		return
 	if _t < scare_until:
 		_err_in_window += 1
-		add_suspicion(7.0 + 2.0 * minf(_err_in_window, 4.0), "TELL_FUMBLE")
+		add_suspicion((7.0 + 2.0 * minf(_err_in_window, 4.0)) * _fumble_w, "TELL_FUMBLE")
 	else:
 		# sloppy playing alone makes him wary, never certain
 		var room := max_suspicion() * 0.45 - suspicion
@@ -141,7 +145,8 @@ func composure(secs: float, weight := 1.0) -> void:
 	_comp_speed0 = Vector2(player.velocity.x, player.velocity.z).length()
 	mic_gate_until = _t + 0.3
 	if playing_piano:
-		scare_window(secs)
+		# the things in your head come often: a slip after one costs less
+		scare_window(secs, 0.8 if weight > 0.7 else 0.4)
 
 
 ## A sound that is only in your head: he heard nothing, so turning to it tells.

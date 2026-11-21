@@ -381,7 +381,7 @@ func _process(delta: float) -> void:
 			current = _target_name
 			pose_reached.emit(current)
 	_locomote(delta)
-	if alive or _dirty or moving or _walk > 0.0 or undead or jaw_open > 0.0 or lid_wide > 0.0:
+	if alive or _dirty or moving or _walk > 0.0 or (visible and (undead or jaw_open > 0.0 or lid_wide > 0.0)):
 		_compose(delta)
 		_dirty = false
 
