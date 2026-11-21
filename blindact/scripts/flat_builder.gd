@@ -151,7 +151,7 @@ func _materials() -> void:
 	_m.enamel = enamel
 	_m.plaster_trim = _flat(Color(0.6, 0.62, 0.61), 0.85)
 	var curtain := StandardMaterial3D.new()
-	curtain.albedo_color = Color(0.7, 0.76, 0.76, 0.82)
+	curtain.albedo_color = Color(0.72, 0.78, 0.78, 0.88)
 	curtain.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	curtain.cull_mode = BaseMaterial3D.CULL_DISABLED
 	curtain.roughness = 0.6
@@ -729,7 +729,7 @@ func _bathroom() -> void:
 			[0.018, 0.016, 0.014, 0.012], _m.chrome)
 	spots.tub = Vector3(1.9, 0.12, 5.42)
 	var cur := MeshInstance3D.new()
-	cur.mesh = MeshUtil.curtain(1.0, 1.92, 8, 0.035, 2)
+	cur.mesh = MeshUtil.curtain(1.0, 1.92, 11, 0.018, 2)
 	cur.material_override = _m.curtain
 	cur.position = Vector3(1.45, 2.19, 5.04)
 	r.add_child(cur)
