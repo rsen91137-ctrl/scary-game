@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c6pd82rtrf730"
-path.bptc="res://.godot/imported/walltile_albedo.png-de6d5eb2145bcd9dd82f7c835edcdc77.bptc.ctex"
+path.s3tc="res://.godot/imported/walltile_albedo.png-de6d5eb2145bcd9dd82f7c835edcdc77.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -12,12 +12,12 @@ metadata={
 [deps]
 
 source_file="res://assets/textures/walltile_albedo.png"
-dest_files=["res://.godot/imported/walltile_albedo.png-de6d5eb2145bcd9dd82f7c835edcdc77.bptc.ctex"]
+dest_files=["res://.godot/imported/walltile_albedo.png-de6d5eb2145bcd9dd82f7c835edcdc77.s3tc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=true
+compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

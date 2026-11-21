@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c4btpeu0g3xo4"
-path.bptc="res://.godot/imported/woman_tongue_albedo.png-30f3ea80a6b55a2d5e31aa0c3ecdcd50.bptc.ctex"
+path.s3tc="res://.godot/imported/woman_tongue_albedo.png-30f3ea80a6b55a2d5e31aa0c3ecdcd50.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -12,12 +12,12 @@ metadata={
 [deps]
 
 source_file="res://assets/textures/chars/woman_tongue_albedo.png"
-dest_files=["res://.godot/imported/woman_tongue_albedo.png-30f3ea80a6b55a2d5e31aa0c3ecdcd50.bptc.ctex"]
+dest_files=["res://.godot/imported/woman_tongue_albedo.png-30f3ea80a6b55a2d5e31aa0c3ecdcd50.s3tc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=true
+compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

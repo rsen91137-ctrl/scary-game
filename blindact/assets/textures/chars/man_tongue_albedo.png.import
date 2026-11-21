@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ct6kghfsj8u7y"
-path.bptc="res://.godot/imported/man_tongue_albedo.png-5d365d67f14b59eb2e797b0271d15b9a.bptc.ctex"
+path.s3tc="res://.godot/imported/man_tongue_albedo.png-5d365d67f14b59eb2e797b0271d15b9a.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -12,12 +12,12 @@ metadata={
 [deps]
 
 source_file="res://assets/textures/chars/man_tongue_albedo.png"
-dest_files=["res://.godot/imported/man_tongue_albedo.png-5d365d67f14b59eb2e797b0271d15b9a.bptc.ctex"]
+dest_files=["res://.godot/imported/man_tongue_albedo.png-5d365d67f14b59eb2e797b0271d15b9a.s3tc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=true
+compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://f7hk17wwyq7"
-path.bptc="res://.godot/imported/tag_black.png-9490557d73fc953940c3075278f67671.bptc.ctex"
+path.s3tc="res://.godot/imported/tag_black.png-9490557d73fc953940c3075278f67671.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -12,12 +12,12 @@ metadata={
 [deps]
 
 source_file="res://assets/textures/decals/tag_black.png"
-dest_files=["res://.godot/imported/tag_black.png-9490557d73fc953940c3075278f67671.bptc.ctex"]
+dest_files=["res://.godot/imported/tag_black.png-9490557d73fc953940c3075278f67671.s3tc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=true
+compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

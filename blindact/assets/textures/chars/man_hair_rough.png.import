@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dcyhvgxabt60s"
-path.bptc="res://.godot/imported/man_hair_rough.png-b71cb4a7680eddfa807b04a60a4ae9da.bptc.ctex"
+path.s3tc="res://.godot/imported/man_hair_rough.png-b71cb4a7680eddfa807b04a60a4ae9da.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -12,12 +12,12 @@ metadata={
 [deps]
 
 source_file="res://assets/textures/chars/man_hair_rough.png"
-dest_files=["res://.godot/imported/man_hair_rough.png-b71cb4a7680eddfa807b04a60a4ae9da.bptc.ctex"]
+dest_files=["res://.godot/imported/man_hair_rough.png-b71cb4a7680eddfa807b04a60a4ae9da.s3tc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=true
+compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

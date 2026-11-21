@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cmmj3aci5w41p"
-path.bptc="res://.godot/imported/brick_albedo.png-af334ecd0a425986b8e95a9da211afab.bptc.ctex"
+path.s3tc="res://.godot/imported/brick_albedo.png-af334ecd0a425986b8e95a9da211afab.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -12,12 +12,12 @@ metadata={
 [deps]
 
 source_file="res://assets/textures/brick_albedo.png"
-dest_files=["res://.godot/imported/brick_albedo.png-af334ecd0a425986b8e95a9da211afab.bptc.ctex"]
+dest_files=["res://.godot/imported/brick_albedo.png-af334ecd0a425986b8e95a9da211afab.s3tc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=true
+compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
