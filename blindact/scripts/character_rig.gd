@@ -42,8 +42,9 @@ const POSES := {
 		"neck01": {"rot": Vector3(-12, 0, 0)},
 	},
 	"lean_in": {
-		"spine01": {"rot": Vector3(28, 0, 0)}, "spine03": {"rot": Vector3(10, 0, 0)},
-		"neck01": {"rot": Vector3(-28, 0, 0)},
+		"spine05": {"rot": Vector3(13, 0, 0)}, "spine04": {"rot": Vector3(9, 0, 0)},
+		"spine03": {"rot": Vector3(8, 0, 0)}, "spine01": {"rot": Vector3(8, 0, 0)},
+		"neck01": {"rot": Vector3(-26, 0, 0)},
 		"upperarm01.L": {"dir": Vector3(0.18, -0.9, -0.45)}, "upperarm01.R": {"dir": Vector3(-0.18, -0.9, -0.45)},
 		"lowerarm01.L": {"dir": Vector3(-0.35, -0.3, -0.9)}, "lowerarm01.R": {"dir": Vector3(0.35, -0.3, -0.9)},
 	},
@@ -52,10 +53,12 @@ const POSES := {
 		"upperarm01.L": {"dir": Vector3(0.14, -1.0, 0.04)}, "lowerarm01.L": {"dir": Vector3(0.06, -1.0, 0.16)},
 	},
 	"peer": {
-		"spine01": {"rot": Vector3(34, 0, 0)}, "spine03": {"rot": Vector3(14, 0, 0)},
-		"neck01": {"rot": Vector3(-30, 0, 0)}, "head": {"rot": Vector3(-8, 0, 0)},
-		"upperleg01.L": {"dir": Vector3(0.08, -1.0, 0.2)}, "upperleg01.R": {"dir": Vector3(-0.08, -1.0, 0.2)},
-		"lowerleg01.L": {"dir": Vector3(0.02, -1.0, -0.12)}, "lowerleg01.R": {"dir": Vector3(-0.02, -1.0, -0.12)},
+		"spine05": {"rot": Vector3(24, 0, 0)}, "spine04": {"rot": Vector3(16, 0, 0)},
+		"spine03": {"rot": Vector3(10, 0, 0)}, "spine01": {"rot": Vector3(6, 0, 0)},
+		"neck01": {"rot": Vector3(-34, 0, 0)}, "head": {"rot": Vector3(-14, 0, 0)},
+		"upperleg01.L": {"dir": Vector3(0.12, -1.0, 0.9)}, "upperleg01.R": {"dir": Vector3(-0.12, -1.0, 0.8)},
+		"lowerleg01.L": {"dir": Vector3(0.02, -1.0, -0.55)}, "lowerleg01.R": {"dir": Vector3(-0.02, -1.0, -0.5)},
+		"foot.L": {"rot": Vector3(-29, 0, 0)}, "foot.R": {"rot": Vector3(-27, 0, 0)},
 		"upperarm01.L": {"dir": Vector3(0.2, -0.9, -0.3)}, "upperarm01.R": {"dir": Vector3(-0.2, -0.9, -0.3)},
 		"lowerarm01.L": {"dir": Vector3(-0.2, -0.6, -0.7)}, "lowerarm01.R": {"dir": Vector3(0.2, -0.6, -0.7)},
 	},
@@ -757,3 +760,23 @@ func _ground_feet(delta: float) -> void:
 	var off := -low * sy * _ground_w
 	_ground = lerpf(_ground, off, 1.0 - exp(-30.0 * delta))
 	_inst.position.y = _inst_y0 + _ground
+
+
+## Her head is gone (it is on the piano now): the head collapses into the
+## neck and a dark wet stump caps it.
+func hide_head() -> void:
+	if skel == null or not _idx.has("head"):
+		return
+	skel.set_bone_pose_scale(_idx["head"], Vector3.ONE * 0.001)
+	var cap := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.052
+	sm.height = 0.045
+	cap.mesh = sm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.2, 0.012, 0.016)
+	mat.roughness = 0.12
+	mat.metallic_specular = 0.7
+	cap.material_override = mat
+	cap.position = Vector3(0.0, 0.045, 0.0)
+	attach("neck03", cap)

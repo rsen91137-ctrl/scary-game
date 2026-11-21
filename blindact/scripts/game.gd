@@ -68,6 +68,7 @@ var _world_ready := false
 var head: CharacterRig          # hers, for the piano
 var _head_held := false
 var _susp_stage := 0
+var _man_watching := false
 signal world_ready
 var _fp_item: Node3D            # what he holds up in front of him (receiver, glasses)
 var _cord: MeshInstance3D       # the phone cord while the receiver is lifted
@@ -1129,9 +1130,11 @@ func _stand_up() -> void:
 ## your way, with the hall in view.
 const MAN_WATCH := Vector3(-1.25, 0.0, 0.95)
 ## Where he creeps up to for the face at the piano (from the seat).
-const FACE_SPOT := Vector3(-0.35, 0.0, -0.62)
+const FACE_SPOT := Vector3(-0.33, 0.0, -0.66)
 ## His armchair faces the back of the piano bench.
 const CHAIR_YAW := PI / 3.0
+## Where he stands to watch your hands when he grows suspicious (from the seat).
+const WATCH_SPOT := Vector3(0.75, 0.0, 0.5)
 
 var _nav_region: NavigationRegion3D
 var _nav_ready := false
@@ -1290,13 +1293,20 @@ func _test(kind: String, g: int) -> void:
 			# he creeps up on your right, no footsteps; then his face, all at
 			# once, right beside yours
 			man.quiet = true
-			await man_walk(flat.spots.piano_seat + FACE_SPOT, player.eye_pos(), 0.7)
+			# he stands at the bass end of the keyboard, side on to you
+			await man_walk(flat.spots.piano_seat + FACE_SPOT, flat.spots.piano_seat + FACE_SPOT + Vector3(0, 0, 1), 0.7)
 			man.quiet = false
 			if not _alive(g):
 				return
 			await wait(0.8)
 			man.set_pose("peer", 0.16)
+			_face_light(5.5)
 			await wait(0.12)
+			if OS.get_cmdline_user_args().has("--probe"):
+				await wait(0.3)
+				var hp := man.bone_pos("head")
+				var to := (hp - player.eye_pos())
+				print("PROBE head=", hp, " dist=", to.length(), " angle=", rad_to_deg(player.look_dir().angle_to(to.normalized())))
 			_sfx("res://assets/audio/stinger.ogg", -2.0)
 			_sfx3d("res://assets/audio/whoosh.ogg", man.bone_pos("head"), -6.0, 2.0)
 			red_flash = 0.6
@@ -1538,6 +1548,7 @@ func _head_scene(g: int) -> void:
 		head.setup("woman_head", "woman", false)
 	head.visible = true
 	_head_held = true
+	woman.hide_head()
 	_sfx3d("res://assets/audio/drip.ogg", man.global_position + Vector3(0, 0.5, 0), -8.0, 2.0)
 	await man_walk(flat.spots.piano_seat + Vector3(0.3, 0.0, 0.85), player.global_position)
 	if not _alive(g):
@@ -1563,6 +1574,22 @@ func _head_scene(g: int) -> void:
 	man.set_pose("stand", 0.8)
 	await wait(0.6)
 	await man_walk(flat.spots.piano_seat + Vector3(1.4, 0.0, 0.4), player.global_position)
+
+
+## A faint cold light from where you sit, so a face pushed into yours shows.
+func _face_light(secs: float) -> void:
+	var l := OmniLight3D.new()
+	l.light_color = Color(0.72, 0.83, 1.0)
+	l.light_energy = 0.0
+	l.omni_range = 1.3
+	l.shadow_enabled = false
+	add_child(l)
+	l.global_position = player.eye_pos() + player.look_dir() * 0.05 + Vector3(0, 0.08, 0)
+	var tw := create_tween()
+	tw.tween_property(l, "light_energy", 0.55, 0.12)
+	tw.tween_interval(maxf(0.1, secs - 1.6))
+	tw.tween_property(l, "light_energy", 0.0, 1.5)
+	tw.tween_callback(l.queue_free)
 
 
 ## Her head, thrown past your ear: it crashes down on the keys and comes to
@@ -1615,11 +1642,20 @@ func _throw_head() -> void:
 ## fifths he has made up his mind but for one more slip.
 func _update_suspicion_stage() -> void:
 	var f := state.suspicion / state.max_suspicion()
-	var stage := 2 if f >= 0.8 else (1 if f >= 0.5 else 0)
+	var stage := 2 if f >= 0.8 else (1 if f >= 0.5 else (0 if f < 0.3 else mini(_susp_stage, 1)))
 	if stage > _susp_stage and (act == "flat" or act == "stairs"):
 		think("THINK_SUSPECT_%d" % stage, 3.0)
 		body.stress = maxf(body.stress, 0.55 + 0.25 * stage)
 		player.heartbeat_kick(0.4 * stage)
+		# while you play he gets out of his chair and comes to watch your hands
+		if act == "flat" and state.playing_piano and man.target_pose() == "sit" and not man.moving:
+			_man_watching = true
+			man_walk(flat.spots.piano_seat + WATCH_SPOT, player.eye_pos(), 0.85)
+	elif stage == 0 and _man_watching and not man.moving and act == "flat":
+		# satisfied, for now
+		_man_watching = false
+		if man.global_position.distance_to(flat.spots.piano_seat + WATCH_SPOT) < 0.4:
+			man_sit_chair()
 	_susp_stage = stage
 
 
@@ -1914,6 +1950,20 @@ func _dev_place() -> void:
 			man.look_at(Vector3(player.global_position.x, man.global_position.y, player.global_position.z), Vector3.UP, true)
 		elif a.begins_with("--fadeoff"):
 			ui.fade_now(0.0)
+		elif a.begins_with("--tour="):
+			# x,y,z,yaw,pitch;... : a new viewpoint every 3 s (for screenshots)
+			_dev_tour(a.substr(7).split(";"))
+
+
+func _dev_tour(stops: PackedStringArray) -> void:
+	for stop: String in stops:
+		var v := stop.split(",")
+		player.set_mode("locked")
+		player.global_position = Vector3(float(v[0]), float(v[1]), float(v[2]))
+		player.yaw = deg_to_rad(float(v[3]))
+		player.pitch = deg_to_rad(float(v[4]))
+		ui.fade_now(0.0)
+		await wait(3.0)
 
 
 ## Dev: straight to a piano scare to look at it (--act=head / --act=face).
