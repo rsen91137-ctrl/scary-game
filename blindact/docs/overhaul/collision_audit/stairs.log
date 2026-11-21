@@ -1,0 +1,59 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+WORLD built in 763 ms; physics setting=DEFAULT
+PROFILE x=-0.68 (floor height by z, rays from above): z0.75:-0.00 z0.85:-0.00 z0.95:-0.00 z1.05:-0.00 z1.15:0.02 z1.25:0.09 z1.35:0.15 z1.45:0.22 z1.55:0.28 z1.65:0.35 z1.75:0.41 z1.85:0.48 z1.95:0.54 z2.05:0.61 z2.15:0.67 z2.25:0.74 z2.35:0.80 z2.45:0.87 z2.55:0.93 z2.65:1.00 z2.75:1.06 z2.85:1.13 z2.95:1.19 z3.05:1.25 z3.15:1.32 z3.25:1.38 z3.35:1.45 z3.45:1.51 z3.55:1.58 z3.65:1.60 z3.75:1.45 z3.85:1.45 z3.95:1.45 
+PROFILE x=0.68 (floor height by z, rays from above): z0.75:2.90 z0.85:2.90 z0.95:2.90 z1.05:2.90 z1.15:3.05 z1.25:2.99 z1.35:2.92 z1.45:2.86 z1.55:2.80 z1.65:2.73 z1.75:2.67 z1.85:2.60 z1.95:2.54 z2.05:2.47 z2.15:2.41 z2.25:2.34 z2.35:2.28 z2.45:2.21 z2.55:2.15 z2.65:2.08 z2.75:2.02 z2.85:1.95 z2.95:1.89 z3.05:1.82 z3.15:1.76 z3.25:1.69 z3.35:1.63 z3.45:1.57 z3.55:1.50 z3.65:1.45 z3.75:1.45 z3.85:1.45 z3.95:1.45 
+CLIMB flight A from the start, holding forward (+z):
+  t=0.5s local (-0.68,0.00,0.85) on_floor=true wall=false moved=0.455 vel=(0.00,0.00,1.05) touching=["Stairs/Floor0 box 2.60x0.20x3.10@(0.00,-0.10,-40.25)"]
+  t=1.0s local (-0.68,0.15,1.26) on_floor=true wall=false moved=0.434 vel=(0.00,0.00,1.05) touching=["Stairs/Floor0 box 1.21x0.10x3.07@(-0.69,0.75,-37.63)"]
+  t=1.5s local (-0.68,0.37,1.61) on_floor=true wall=false moved=0.414 vel=(0.00,0.00,1.05) touching=["Stairs/Floor0 box 1.21x0.10x3.07@(-0.69,0.75,-37.63)"]
+  t=2.0s local (-0.68,0.60,1.96) on_floor=true wall=false moved=0.414 vel=(0.00,0.00,1.05) touching=["Stairs/Floor0 box 1.21x0.10x3.07@(-0.69,0.75,-37.63)"]
+  t=2.5s local (-0.68,0.82,2.30) on_floor=true wall=false moved=0.414 vel=(0.00,0.00,1.05) touching=["Stairs/Floor0 box 1.21x0.10x3.07@(-0.69,0.75,-37.63)"]
+  t=3.0s local (-0.68,1.05,2.65) on_floor=true wall=false moved=0.414 vel=(0.00,0.00,1.05) touching=["Stairs/Floor0 box 1.21x0.10x3.07@(-0.69,0.75,-37.63)"]
+  t=3.5s local (-0.68,1.27,3.00) on_floor=true wall=false moved=0.414 vel=(0.00,0.00,1.05) touching=["Stairs/Floor0 box 1.21x0.10x3.07@(-0.69,0.75,-37.63)"]
+  t=4.0s local (-0.68,1.50,3.35) on_floor=true wall=false moved=0.414 vel=(0.00,0.00,1.05) touching=["Stairs/Floor0 box 1.21x0.10x3.07@(-0.69,0.75,-37.63)"]
+  t=4.5s local (-0.68,1.59,3.78) on_floor=true wall=false moved=0.439 vel=(0.00,0.00,1.05) touching=[]
+  t=5.0s local (-0.68,1.45,4.30) on_floor=true wall=false moved=0.544 vel=(0.00,0.00,1.05) touching=["Stairs/Floor0 box 2.60x0.20x1.35@(0.00,1.35,-35.89)"]
+  t=5.5s local (-0.68,1.45,4.48) on_floor=true wall=true moved=0.177 vel=(0.00,0.00,0.00) touching=["Stairs/Floor0 box 2.60x0.20x1.35@(0.00,1.35,-35.89)"]
+  t=6.0s local (-0.68,1.45,4.48) on_floor=true wall=true moved=0.000 vel=(0.00,0.00,0.00) touching=["Stairs/Floor0 box 2.60x0.20x1.35@(0.00,1.35,-35.89)"]
+  t=6.5s local (-0.68,1.45,4.48) on_floor=true wall=true moved=0.000 vel=(0.00,0.00,0.00) touching=["Stairs/Floor0 box 2.60x0.20x1.35@(0.00,1.35,-35.89)"]
+  t=7.0s local (-0.68,1.45,4.48) on_floor=true wall=true moved=0.000 vel=(0.00,0.00,0.00) touching=["Stairs/Floor0 box 2.60x0.20x1.35@(0.00,1.35,-35.89)"]
+  t=7.5s local (-0.68,1.45,4.48) on_floor=true wall=true moved=0.000 vel=(0.00,0.00,0.00) touching=["Stairs/Floor0 box 2.60x0.20x1.35@(0.00,1.35,-35.89)"]
+  t=8.0s local (-0.68,1.45,4.48) on_floor=true wall=true moved=0.000 vel=(0.00,0.00,0.00) touching=["Stairs/Floor0 box 2.60x0.20x1.35@(0.00,1.35,-35.89)"]
+  t=8.5s local (-0.68,1.45,4.48) on_floor=true wall=true moved=0.000 vel=(0.00,0.00,0.00) touching=["Stairs/Floor0 box 2.60x0.20x1.35@(0.00,1.35,-35.89)"]
+  t=9.0s local (-0.68,1.45,4.48) on_floor=true wall=true moved=0.000 vel=(0.00,0.00,0.00) touching=["Stairs/Floor0 box 2.60x0.20x1.35@(0.00,1.35,-35.89)"]
+  t=9.5s local (-0.68,1.45,4.48) on_floor=true wall=true moved=0.000 vel=(0.00,0.00,0.00) touching=["Stairs/Floor0 box 2.60x0.20x1.35@(0.00,1.35,-35.89)"]
+  t=10.0s local (-0.68,1.45,4.48) on_floor=true wall=true moved=0.000 vel=(0.00,0.00,0.00) touching=["Stairs/Floor0 box 2.60x0.20x1.35@(0.00,1.35,-35.89)"]
+CLIMB to her floor by waypoints:
+  -> (-0.68,0.00,1.15) : ok at local (-0.68,0.01,1.05) (y 0.01, wanted 0.00) t=0.7s
+  -> (-0.68,1.45,3.99) : ok at local (-0.68,1.52,3.90) (y 1.52, wanted 1.45) t=4.6s
+  -> (0.68,1.45,3.99) : ok at local (0.59,1.45,3.99) (y 1.45, wanted 1.45) t=5.9s
+  -> (0.68,2.90,0.75) : ok at local (0.68,2.98,0.85) (y 2.98, wanted 2.90) t=10.2s
+  -> (-0.68,2.90,0.40) : ok at local (-0.59,2.90,0.42) (y 2.90, wanted 2.90) t=11.6s
+  -> (-0.68,2.90,1.15) : ok at local (-0.68,2.91,1.05) (y 2.91, wanted 2.90) t=12.3s
+  -> (-0.68,4.35,3.99) : ok at local (-0.68,4.42,3.90) (y 4.42, wanted 4.35) t=16.2s
+  -> (0.68,4.35,3.99) : ok at local (0.58,4.35,3.99) (y 4.35, wanted 4.35) t=17.5s
+  -> (0.68,5.80,0.75) : ok at local (0.68,5.87,0.84) (y 5.87, wanted 5.80) t=21.8s
+  -> (-0.68,5.80,0.40) : ok at local (-0.59,5.80,0.42) (y 5.80, wanted 5.80) t=23.2s
+  -> (-0.90,5.80,-1.00) : ok at local (-0.88,5.80,-0.91) (y 5.80, wanted 5.80) t=24.5s
+CLIMB RESULT: reached her door
+DESCEND from her floor:
+  -> (0.68,5.80,0.75) : ok at local (0.59,5.80,0.73) touching 
+  -> (0.68,4.35,3.99) : BLOCKED at local (0.67,5.80,0.85) touching ["Stairs/Floor2 box 2.60x0.20x3.10@(0.00,5.70,-40.25)"]
+GROUND FLOOR, right-hand side, walking +z from the start landing:
+  t=0.7s local (0.68,0.00,1.03) on_floor=true
+  t=1.3s local (0.68,-0.37,1.73) on_floor=false
+  t=2.0s local (0.68,-4.20,2.43) on_floor=false
+  t=2.7s local (0.68,-12.38,3.13) on_floor=false
+  t=3.3s local (0.68,-24.91,3.83) on_floor=false
+  t=4.0s local (0.68,-41.80,4.53) on_floor=false
+  t=4.7s local (0.68,-63.05,5.23) on_floor=false
+  t=5.3s local (0.68,-88.65,5.93) on_floor=false
+  t=6.0s local (0.68,-118.60,6.63) on_floor=false
+  t=6.7s local (0.68,-152.92,7.33) on_floor=false
+ABOVE HER FLOOR (flight A and B of the top floor):
+  -> (-0.68,5.80,1.15) : ok at local (-0.68,5.81,1.05) on_floor=true
+  -> (-0.68,7.25,3.99) : ok at local (-0.68,7.32,3.90) on_floor=false
+  -> (0.68,7.25,3.99) : ok at local (0.59,7.25,3.99) on_floor=true
+  -> (0.68,8.70,0.65) : ok at local (0.68,8.65,0.74) on_floor=false
+  -> (0.00,8.70,-1.00) : ok at local (0.03,5.80,-0.92) on_floor=true

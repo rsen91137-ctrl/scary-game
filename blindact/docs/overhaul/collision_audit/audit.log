@@ -1,0 +1,365 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+WORLD built in 706 ms; physics setting=DEFAULT
+SERVER class=PhysicsServer3D
+COLLIDERS: 105 boxes, 4 concave trimeshes, 2 capsules
+  C Flat/Bath TRIMESH 336tri@(2.80,0.00,4.00) | aabb x[2.69,2.91] y[0.00,0.68] z[3.87,4.13] layer=1 CONCAVE
+  C Flat/Bath TRIMESH 704tri@(1.75,0.00,3.82) | aabb x[1.56,1.94] y[0.00,0.42] z[3.57,4.07] layer=1 CONCAVE
+  C Flat/Bath TRIMESH 704tri@(2.76,0.00,4.00) | aabb x[2.54,2.98] y[0.66,0.88] z[3.72,4.28] layer=1 CONCAVE OVERHANG(bottom 0.66)
+  C Flat/Bath box 0.16x0.65x0.80@(0.65,2.42,4.10) | aabb x[0.57,0.73] y[2.10,2.75] z[3.70,4.50] layer=1
+  C Flat/Bath box 0.16x2.75x0.30@(0.65,1.38,3.55) | aabb x[0.57,0.73] y[0.00,2.75] z[3.40,3.70] layer=1
+  C Flat/Bath box 0.16x2.75x1.30@(0.65,1.38,5.15) | aabb x[0.57,0.73] y[0.00,2.75] z[4.50,5.80] layer=1
+  C Flat/Bath box 0.16x2.75x2.40@(3.00,1.38,4.60) | aabb x[2.92,3.08] y[0.00,2.75] z[3.40,5.80] layer=1
+  C Flat/Bath box 0.42x0.38x0.18@(1.75,0.64,3.50) | aabb x[1.54,1.96] y[0.45,0.83] z[3.41,3.59] layer=1 OVERHANG(bottom 0.45)
+  C Flat/Bath box 2.35x0.10x2.40@(1.83,-0.05,4.60) | aabb x[0.65,3.00] y[-0.10,0.00] z[3.40,5.80] layer=1
+  C Flat/Bath box 2.35x2.75x0.16@(1.83,1.38,3.40) | aabb x[0.65,3.00] y[0.00,2.75] z[3.32,3.48] layer=1
+  C Flat/Bath box 2.35x2.75x0.16@(1.83,1.38,5.80) | aabb x[0.65,3.00] y[0.00,2.75] z[5.72,5.88] layer=1
+  C Flat/Bath/Leaf box 0.80x2.05x0.05@(1.16,1.02,3.69) | aabb x[0.76,1.56] y[0.00,2.05] z[3.65,3.72] layer=1 THIN(0.073)
+  C Flat/Bath/Tub TRIMESH 1536tri@(1.90,0.00,5.42) | aabb x[1.08,2.72] y[0.15,0.64] z[5.06,5.78] layer=1 CONCAVE OVERHANG(bottom 0.15)
+  C Flat/Bed box 0.06x2.10x1.26@(2.37,1.05,7.50) | aabb x[2.34,2.40] y[0.00,2.10] z[6.87,8.13] layer=1 THIN(0.060)
+  C Flat/Bed box 0.16x2.75x3.40@(-2.40,1.38,8.10) | aabb x[-2.48,-2.32] y[0.00,2.75] z[6.40,9.80] layer=1
+  C Flat/Bed box 0.16x2.75x3.40@(2.40,1.38,8.10) | aabb x[2.32,2.48] y[0.00,2.75] z[6.40,9.80] layer=1
+  C Flat/Bed box 0.60x2.75x0.16@(2.10,1.38,9.80) | aabb x[1.80,2.40] y[0.00,2.75] z[9.72,9.88] layer=1
+  C Flat/Bed box 0.62x0.06x1.26@(2.05,2.13,7.50) | aabb x[1.74,2.36] y[2.10,2.16] z[6.87,8.13] layer=1
+  C Flat/Bed box 0.62x2.10x0.06@(2.05,1.05,6.90) | aabb x[1.74,2.36] y[0.00,2.10] z[6.87,6.93] layer=1 THIN(0.060)
+  C Flat/Bed box 0.62x2.10x0.06@(2.05,1.05,8.10) | aabb x[1.74,2.36] y[0.00,2.10] z[8.07,8.13] layer=1 THIN(0.060)
+  C Flat/Bed box 0.90x0.65x0.16@(0.00,2.42,6.40) | aabb x[-0.45,0.45] y[2.10,2.75] z[6.32,6.48] layer=1
+  C Flat/Bed box 1.20x0.45x0.16@(1.20,2.53,9.80) | aabb x[0.60,1.80] y[2.30,2.75] z[9.72,9.88] layer=1
+  C Flat/Bed box 1.20x0.60x0.16@(1.20,0.30,9.80) | aabb x[0.60,1.80] y[0.00,0.60] z[9.72,9.88] layer=1
+  C Flat/Bed box 1.95x2.75x0.16@(-1.42,1.38,6.40) | aabb x[-2.40,-0.45] y[0.00,2.75] z[6.32,6.48] layer=1
+  C Flat/Bed box 1.95x2.75x0.16@(1.42,1.38,6.40) | aabb x[0.45,2.40] y[0.00,2.75] z[6.32,6.48] layer=1
+  C Flat/Bed box 3.00x2.75x0.16@(-0.90,1.38,9.80) | aabb x[-2.40,0.60] y[0.00,2.75] z[9.72,9.88] layer=1
+  C Flat/Bed box 4.80x0.10x3.40@(0.00,-0.05,8.10) | aabb x[-2.40,2.40] y[-0.10,0.00] z[6.40,9.80] layer=1
+  C Flat/Bed/Bed box 1.60x0.65x2.10@(-1.40,0.33,8.60) | aabb x[-2.20,-0.60] y[0.01,0.66] z[7.55,9.65] layer=1
+  C Flat/Bed/Chest box 0.95x0.85x0.48@(-1.90,0.42,6.83) | aabb x[-2.38,-1.42] y[-0.01,0.84] z[6.59,7.07] layer=1
+  C Flat/Bed/Leaf box 0.60x2.05x0.05@(1.74,1.02,7.20) | aabb x[1.72,1.76] y[0.00,2.05] z[6.90,7.50] layer=1 THIN(0.045)
+  C Flat/Bed/Leaf box 0.60x2.05x0.05@(1.74,1.02,7.80) | aabb x[1.72,1.76] y[0.00,2.05] z[7.50,8.10] layer=1 THIN(0.045)
+  C Flat/Bed/Leaf box 0.90x2.05x0.05@(-0.33,1.02,6.83) | aabb x[-0.47,-0.19] y[0.00,2.05] z[6.39,7.27] layer=1
+  C Flat/Bed/Nightstand box 0.45x0.62x0.40@(-0.30,0.31,9.50) | aabb x[-0.52,-0.07] y[0.00,0.62] z[9.30,9.70] layer=1
+  C Flat/Bed/Radiator box 0.50x0.70x0.16@(-2.24,0.35,7.33) | aabb x[-2.32,-2.16] y[0.00,0.70] z[7.08,7.58] layer=1
+  C Flat/Hall box 0.16x0.60x1.20@(-0.65,2.45,1.80) | aabb x[-0.73,-0.57] y[2.15,2.75] z[1.20,2.40] layer=1
+  C Flat/Hall box 0.16x0.65x0.80@(0.65,2.42,4.10) | aabb x[0.57,0.73] y[2.10,2.75] z[3.70,4.50] layer=1
+  C Flat/Hall box 0.16x2.75x1.20@(-0.65,1.38,0.60) | aabb x[-0.73,-0.57] y[0.00,2.75] z[0.00,1.20] layer=1
+  C Flat/Hall box 0.16x2.75x1.90@(0.65,1.38,5.45) | aabb x[0.57,0.73] y[0.00,2.75] z[4.50,6.40] layer=1
+  C Flat/Hall box 0.16x2.75x3.70@(0.65,1.38,1.85) | aabb x[0.57,0.73] y[0.00,2.75] z[0.00,3.70] layer=1
+  C Flat/Hall box 0.16x2.75x4.00@(-0.65,1.38,4.40) | aabb x[-0.73,-0.57] y[0.00,2.75] z[2.40,6.40] layer=1
+  C Flat/Hall box 0.20x2.75x0.16@(-0.55,1.38,0.00) | aabb x[-0.65,-0.45] y[0.00,2.75] z[-0.08,0.08] layer=1
+  C Flat/Hall box 0.20x2.75x0.16@(-0.55,1.38,6.40) | aabb x[-0.65,-0.45] y[0.00,2.75] z[6.32,6.48] layer=1
+  C Flat/Hall box 0.20x2.75x0.16@(0.55,1.38,0.00) | aabb x[0.45,0.65] y[0.00,2.75] z[-0.08,0.08] layer=1
+  C Flat/Hall box 0.20x2.75x0.16@(0.55,1.38,6.40) | aabb x[0.45,0.65] y[0.00,2.75] z[6.32,6.48] layer=1
+  C Flat/Hall box 0.90x0.65x0.16@(0.00,2.42,0.00) | aabb x[-0.45,0.45] y[2.10,2.75] z[-0.08,0.08] layer=1
+  C Flat/Hall box 0.90x0.65x0.16@(0.00,2.42,6.40) | aabb x[-0.45,0.45] y[2.10,2.75] z[6.32,6.48] layer=1
+  C Flat/Hall box 1.30x0.10x6.40@(0.00,-0.05,3.20) | aabb x[-0.65,0.65] y[-0.10,0.00] z[0.00,6.40] layer=1
+  C Flat/Hall/CoatStand box 0.30x1.80x0.30@(0.42,0.90,0.80) | aabb x[0.27,0.57] y[0.00,1.80] z[0.65,0.95] layer=1
+  C Flat/Hall/Leaf box 0.90x2.05x0.05@(0.00,1.02,0.00) | aabb x[-0.45,0.45] y[0.00,2.05] z[-0.02,0.02] layer=1 THIN(0.045)
+  C Flat/Home box 0.16x2.75x4.00@(38.00,1.38,2.00) | aabb x[37.92,38.08] y[0.00,2.75] z[0.00,4.00] layer=1
+  C Flat/Home box 0.16x2.75x4.00@(41.60,1.38,2.00) | aabb x[41.52,41.68] y[0.00,2.75] z[0.00,4.00] layer=1
+  C Flat/Home box 0.20x2.75x0.16@(41.50,1.38,0.00) | aabb x[41.40,41.60] y[0.00,2.75] z[-0.08,0.08] layer=1
+  C Flat/Home box 0.90x0.65x0.16@(40.95,2.42,0.00) | aabb x[40.50,41.40] y[2.10,2.75] z[-0.08,0.08] layer=1
+  C Flat/Home box 2.50x2.75x0.16@(39.25,1.38,0.00) | aabb x[38.00,40.50] y[0.00,2.75] z[-0.08,0.08] layer=1
+  C Flat/Home box 3.60x0.10x4.00@(39.80,-0.05,2.00) | aabb x[38.00,41.60] y[-0.10,0.00] z[0.00,4.00] layer=1
+  C Flat/Home box 3.60x2.75x0.16@(39.80,1.38,4.00) | aabb x[38.00,41.60] y[0.00,2.75] z[3.92,4.08] layer=1
+  C Flat/Home/IronBed box 0.90x0.55x2.00@(38.50,0.27,2.90) | aabb x[38.05,38.95] y[-0.00,0.55] z[1.90,3.90] layer=1
+  C Flat/Home/Keyboard box 1.15x0.85x0.35@(38.95,0.42,0.34) | aabb x[38.38,39.53] y[-0.01,0.84] z[0.17,0.51] layer=1
+  C Flat/Home/Leaf box 0.90x2.05x0.05@(40.95,1.02,0.00) | aabb x[40.50,41.40] y[0.00,2.05] z[-0.02,0.02] layer=1 THIN(0.045)
+  C Flat/Home/Table box 1.00x0.75x0.60@(40.90,0.38,3.60) | aabb x[40.40,41.40] y[0.00,0.75] z[3.30,3.90] layer=1
+  C Flat/Living box 0.16x0.60x1.20@(-0.65,2.45,1.80) | aabb x[-0.73,-0.57] y[2.15,2.75] z[1.20,2.40] layer=1
+  C Flat/Living box 0.16x2.75x1.20@(-0.65,1.38,0.60) | aabb x[-0.73,-0.57] y[0.00,2.75] z[0.00,1.20] layer=1
+  C Flat/Living box 0.16x2.75x2.20@(-0.65,1.38,3.50) | aabb x[-0.73,-0.57] y[0.00,2.75] z[2.40,4.60] layer=1
+  C Flat/Living box 0.16x2.75x4.60@(-5.20,1.38,2.30) | aabb x[-5.28,-5.12] y[0.00,2.75] z[0.00,4.60] layer=1
+  C Flat/Living box 1.30x2.75x0.16@(-4.55,1.38,4.60) | aabb x[-5.20,-3.90] y[0.00,2.75] z[4.52,4.68] layer=1
+  C Flat/Living box 1.40x0.45x0.16@(-3.20,2.53,4.60) | aabb x[-3.90,-2.50] y[2.30,2.75] z[4.52,4.68] layer=1
+  C Flat/Living box 1.40x1.50x0.16@(-3.20,0.40,4.60) | aabb x[-3.90,-2.50] y[-0.35,1.15] z[4.52,4.68] layer=1
+  C Flat/Living box 1.85x2.75x0.16@(-1.58,1.38,4.60) | aabb x[-2.50,-0.65] y[0.00,2.75] z[4.52,4.68] layer=1
+  C Flat/Living box 4.55x0.10x4.60@(-2.92,-0.05,2.30) | aabb x[-5.20,-0.65] y[-0.10,0.00] z[0.00,4.60] layer=1
+  C Flat/Living box 4.55x2.75x0.16@(-2.92,1.38,0.00) | aabb x[-5.20,-0.65] y[0.00,2.75] z[-0.08,0.08] layer=1
+  C Flat/Living/Armchair box 0.80x0.90x0.78@(-2.20,0.45,3.30) | aabb x[-2.74,-1.66] y[0.00,0.90] z[2.76,3.84] layer=1
+  C Flat/Living/Bench box 0.85x0.52x0.38@(-4.05,0.26,2.20) | aabb x[-4.24,-3.86] y[0.00,0.52] z[1.78,2.62] layer=1
+  C Flat/Living/Clock box 0.52x2.10x0.34@(-0.95,1.05,4.20) | aabb x[-1.12,-0.78] y[0.00,2.10] z[3.94,4.46] layer=1
+  C Flat/Living/CoffeeTable box 1.00x0.45x0.56@(-3.20,0.22,1.90) | aabb x[-3.70,-2.70] y[0.00,0.45] z[1.62,2.18] layer=1
+  C Flat/Living/Piano box 0.06x0.10x0.32@(-4.72,0.72,1.48) | aabb x[-4.88,-4.56] y[0.67,0.77] z[1.45,1.51] layer=1 OVERHANG(bottom 0.67)
+  C Flat/Living/Piano box 0.06x0.10x0.32@(-4.72,0.72,2.92) | aabb x[-4.88,-4.56] y[0.67,0.77] z[2.89,2.95] layer=1 OVERHANG(bottom 0.67)
+  C Flat/Living/Piano box 1.40x0.06x0.30@(-4.72,0.68,2.20) | aabb x[-4.87,-4.57] y[0.65,0.71] z[1.50,2.90] layer=1 OVERHANG(bottom 0.65)
+  C Flat/Living/Piano box 1.44x1.20x0.32@(-4.99,0.60,2.20) | aabb x[-5.15,-4.83] y[0.00,1.20] z[1.48,2.92] layer=1
+  C Flat/Living/Radiator box 0.74x0.70x0.16@(-3.20,0.35,4.43) | aabb x[-3.57,-2.83] y[0.00,0.70] z[4.35,4.51] layer=1
+  C Flat/Living/SheetedChair box 0.50x1.00x0.50@(-4.72,0.50,4.12) | aabb x[-5.06,-4.38] y[0.00,1.00] z[3.78,4.46] layer=1
+  C Flat/Living/SideTable box 0.45x0.75x0.45@(-1.00,0.38,3.58) | aabb x[-1.23,-0.77] y[0.00,0.75] z[3.36,3.80] layer=1
+  C Flat/Living/Sofa box 2.10x0.85x0.90@(-3.40,0.42,0.52) | aabb x[-4.45,-2.35] y[-0.01,0.84] z[0.07,0.97] layer=1
+  C Man/ManBody capsule r0.22@(0.00,-99.15,0.00) | aabb x[-0.22,0.22] y[-99.95,-98.35] z[-0.22,0.22] layer=4
+  C Stairs/Floor0 box 0.18x2.90x2.24@(0.00,1.45,-37.63) | aabb x[-0.09,0.09] y[0.00,2.90] z[-38.75,-36.51] layer=1
+  C Stairs/Floor0 box 0.30x2.90x7.09@(-1.45,1.45,-38.51) | aabb x[-1.60,-1.30] y[0.00,2.90] z[-42.05,-34.96] layer=1
+  C Stairs/Floor0 box 0.30x2.90x7.09@(1.45,1.45,-38.51) | aabb x[1.30,1.60] y[0.00,2.90] z[-42.05,-34.96] layer=1
+  C Stairs/Floor0 box 1.21x0.10x3.07@(-0.69,0.75,-37.63) | aabb x[-1.30,-0.09] y[-0.12,1.63] z[-38.95,-36.31] layer=1 TILTED
+  C Stairs/Floor0 box 1.21x0.10x3.07@(0.69,2.20,-37.63) | aabb x[0.09,1.30] y[1.33,3.08] z[-38.95,-36.31] layer=1 OVERHANG(bottom 1.33) TILTED
+  C Stairs/Floor0 box 2.60x0.20x1.35@(0.00,1.35,-35.89) | aabb x[-1.30,1.30] y[1.25,1.45] z[-36.56,-35.21] layer=1 OVERHANG(bottom 1.25)
+  C Stairs/Floor0 box 2.60x0.20x3.10@(0.00,-0.10,-40.25) | aabb x[-1.30,1.30] y[-0.20,0.00] z[-41.80,-38.70] layer=1
+  C Stairs/Floor0 box 2.60x2.90x0.30@(0.00,1.45,-35.11) | aabb x[-1.30,1.30] y[0.00,2.90] z[-35.26,-34.96] layer=1
+  C Stairs/Floor0 box 2.60x2.90x0.30@(0.00,1.45,-41.90) | aabb x[-1.30,1.30] y[0.00,2.90] z[-42.05,-41.75] layer=1
+  C Stairs/Floor1 box 0.18x2.90x2.24@(0.00,4.35,-37.63) | aabb x[-0.09,0.09] y[2.90,5.80] z[-38.75,-36.51] layer=1
+  C Stairs/Floor1 box 0.30x2.90x7.09@(-1.45,4.35,-38.51) | aabb x[-1.60,-1.30] y[2.90,5.80] z[-42.05,-34.96] layer=1
+  C Stairs/Floor1 box 0.30x2.90x7.09@(1.45,4.35,-38.51) | aabb x[1.30,1.60] y[2.90,5.80] z[-42.05,-34.96] layer=1
+  C Stairs/Floor1 box 1.21x0.10x3.07@(-0.69,3.66,-37.63) | aabb x[-1.30,-0.09] y[2.78,4.53] z[-38.95,-36.31] layer=1 TILTED
+  C Stairs/Floor1 box 1.21x0.10x3.07@(0.69,5.11,-37.63) | aabb x[0.09,1.30] y[4.23,5.98] z[-38.95,-36.31] layer=1 TILTED
+  C Stairs/Floor1 box 2.60x0.20x1.35@(0.00,4.25,-35.89) | aabb x[-1.30,1.30] y[4.15,4.35] z[-36.56,-35.21] layer=1
+  C Stairs/Floor1 box 2.60x0.20x3.10@(0.00,2.80,-40.25) | aabb x[-1.30,1.30] y[2.70,2.90] z[-41.80,-38.70] layer=1
+  C Stairs/Floor1 box 2.60x2.90x0.30@(0.00,4.35,-35.11) | aabb x[-1.30,1.30] y[2.90,5.80] z[-35.26,-34.96] layer=1
+  C Stairs/Floor1 box 2.60x2.90x0.30@(0.00,4.35,-41.90) | aabb x[-1.30,1.30] y[2.90,5.80] z[-42.05,-41.75] layer=1
+  C Stairs/Floor2 box 0.18x2.90x2.24@(0.00,7.25,-37.63) | aabb x[-0.09,0.09] y[5.80,8.70] z[-38.75,-36.51] layer=1
+  C Stairs/Floor2 box 0.30x2.90x7.09@(-1.45,7.25,-38.51) | aabb x[-1.60,-1.30] y[5.80,8.70] z[-42.05,-34.96] layer=1
+  C Stairs/Floor2 box 0.30x2.90x7.09@(1.45,7.25,-38.51) | aabb x[1.30,1.60] y[5.80,8.70] z[-42.05,-34.96] layer=1
+  C Stairs/Floor2 box 1.21x0.10x3.07@(-0.69,6.56,-37.63) | aabb x[-1.30,-0.09] y[5.68,7.43] z[-38.95,-36.31] layer=1 TILTED
+  C Stairs/Floor2 box 1.21x0.10x3.07@(0.69,8.01,-37.63) | aabb x[0.09,1.30] y[7.13,8.88] z[-38.95,-36.31] layer=1 TILTED
+  C Stairs/Floor2 box 2.60x0.20x1.35@(0.00,7.15,-35.89) | aabb x[-1.30,1.30] y[7.05,7.25] z[-36.56,-35.21] layer=1
+  C Stairs/Floor2 box 2.60x0.20x3.10@(0.00,5.70,-40.25) | aabb x[-1.30,1.30] y[5.60,5.80] z[-41.80,-38.70] layer=1
+  C Stairs/Floor2 box 2.60x2.90x0.30@(0.00,7.25,-35.11) | aabb x[-1.30,1.30] y[5.80,8.70] z[-35.26,-34.96] layer=1
+  C Stairs/Floor2 box 2.60x2.90x0.30@(0.00,7.25,-41.90) | aabb x[-1.30,1.30] y[5.80,8.70] z[-42.05,-41.75] layer=1
+  C Woman/WomanBody capsule r0.22@(1.55,0.41,5.42) | aabb x[0.72,2.38] y[-0.07,0.89] z[5.20,5.64] layer=4 TILTED
+  [inventory: 709 ms]
+
+===== FLAT =====
+  [clearance flat: 321 ms]
+WIDEST ROUTE from hall_mid (0.00,3.00) (player needs 0.52):
+  R front_inside (exit trigger)        (0.00,0.70) -> width 0.53 m (slack +0.01) pinch at (0.00,0.70) between ["Flat/Hall/CoatStand box 0.30x1.80x0.30@(0.42,0.90,0.80)"]
+  R living door, room side             (-1.00,1.80) -> width 1.12 m (slack +0.60) pinch at (-0.45,1.85) between ["Flat/Living box 0.16x2.75x2.20@(-0.65,1.38,3.50)", "Flat/Hall box 0.16x2.75x4.00@(-0.65,1.38,4.40)"]
+  R piano pocket (after standing up)   (-3.30,2.60) -> width 0.62 m (slack +0.10) pinch at (-2.55,2.45) between ["Flat/Living/CoffeeTable box 1.00x0.45x0.56@(-3.20,0.22,1.90)"]
+  R behind the armchair                (-1.90,4.20) -> width 0.60 m (slack +0.08) pinch at (-2.40,4.00) between ["Flat/Living/Armchair box 0.80x0.90x0.78@(-2.20,0.45,3.30)"]
+  R sofa/table corridor                (-3.20,1.30) -> width 0.63 m (slack +0.11) pinch at (-3.20,1.30) between ["Flat/Living/Sofa box 2.10x0.85x0.90@(-3.40,0.42,0.52)", "Flat/Living/CoffeeTable box 1.00x0.45x0.56@(-3.20,0.22,1.90)"]
+  R left of coffee table               (-4.10,1.35) -> width 0.63 m (slack +0.11) pinch at (-3.70,1.30) between ["Flat/Living/Sofa box 2.10x0.85x0.90@(-3.40,0.42,0.52)", "Flat/Living/CoffeeTable box 1.00x0.45x0.56@(-3.20,0.22,1.90)"]
+  R bath, inside the door              (1.10,4.40) -> width 0.75 m (slack +0.23) pinch at (1.10,4.40) between ["Flat/Hall box 0.16x2.75x1.90@(0.65,1.38,5.45)", "Flat/Bath box 0.16x2.75x1.30@(0.65,1.38,5.15)"]
+  R sink_stand (wash spot)             (2.25,4.00) -> width 0.56 m (slack +0.04) pinch at (2.25,4.00) between ["Flat/Bath TRIMESH 704tri@(2.76,0.00,4.00)"]
+  R bath, by the tub                   (2.30,4.70) -> width 0.75 m (slack +0.23) pinch at (2.30,4.70) between ["Flat/Bath/Tub TRIMESH 1536tri@(1.90,0.00,5.42)"]
+  R bedroom, inside the door           (0.10,7.00) -> width 0.69 m (slack +0.17) pinch at (0.10,7.00) between ["Flat/Bed/Leaf box 0.90x2.05x0.05@(-0.33,1.02,6.83)"]
+  R wardrobe_front                     (1.20,7.50) -> width 0.77 m (slack +0.25) pinch at (0.10,6.65) between ["Flat/Hall box 0.20x2.75x0.16@(0.55,1.38,6.40)", "Flat/Bed box 1.95x2.75x0.16@(1.42,1.38,6.40)"]
+  R wardrobe_in (hide teleport)        (2.05,7.50) -> UNREACHABLE (cell clearance 0.27)
+  R escape (window)                    (1.20,9.40) -> width 0.63 m (slack +0.11) pinch at (1.20,9.40) between ["Flat/Bed box 1.20x0.60x0.16@(1.20,0.30,9.80)"]
+  R chest/bed slot                     (-1.80,7.30) -> width 0.42 m (slack -0.10) pinch at (-0.45,7.40) between ["Flat/Bed/Bed box 1.60x0.65x2.10@(-1.40,0.33,8.60)"]
+  R bed foot, left                     (-1.00,7.25) -> width 0.42 m (slack -0.10) pinch at (-0.45,7.40) between ["Flat/Bed/Bed box 1.60x0.65x2.10@(-1.40,0.33,8.60)"]
+  R nightstand/window corner           (0.25,9.40) -> width 0.63 m (slack +0.11) pinch at (0.25,9.40) between ["Flat/Bed box 3.00x2.75x0.16@(-0.90,1.38,9.80)", "Flat/Bed/Nightstand box 0.45x0.62x0.40@(-0.30,0.31,9.50)"]
+COMPONENTS at r=0.26: 4 (main has 6898 cells = 17.2 m2)
+  POCKET #1: 54 cells (0.135 m2) centres x[-4.85,-4.65] z[0.35,1.15]
+  POCKET #2: 131 cells (0.328 m2) centres x[-1.20,-0.55] z[6.75,7.25]
+  POCKET #3: 13 cells (0.033 m2) centres x[2.05,2.05] z[7.20,7.80]
+PASSAGE WIDTHS (2 x largest capsule radius on the cross-line):
+  W living doorway x=-0.65 z1.2..2.4         1.19 m  slack +0.67
+  W bath doorway x=0.65 z3.7..4.5            0.78 m  slack +0.26
+  W bath door, 25 cm inside (leaf)           0.82 m  slack +0.30
+  W bedroom doorway z=6.4                    0.81 m  slack +0.29
+  W bedroom door, 30 cm inside (leaf)        0.82 m  slack +0.30
+  W hall z=3.0                               1.14 m  slack +0.62
+  W hall at coat stand z=0.8                 0.84 m  slack +0.32
+  W coffee table corner - armchair corner    0.67 m  slack +0.15  << TIGHT
+  W sofa - coffee table                      0.63 m  slack +0.11  << TIGHT
+  W armchair - window wall                   0.63 m  slack +0.11  << TIGHT
+  W armchair - pedestal table                0.47 m  slack -0.05  << BLOCKED
+  W bench - coffee table                     0.00 m  slack -0.52  << BLOCKED
+  W bench - piano keys                       0.31 m  slack -0.21  << BLOCKED
+  W sofa - piano                             0.60 m  slack +0.08  << TIGHT
+  W toilet - sink pocket                     0.59 m  slack +0.07  << TIGHT
+  W toilet - tub                             0.97 m  slack +0.45
+  W sink - tub                               0.44 m  slack -0.08  << BLOCKED
+  W bed - wardrobe                           1.40 m  slack +0.88
+  W chest - bed slot                         0.46 m  slack -0.06  << BLOCKED
+  W bed - nightstand/window wall             1.40 m  slack +0.88
+MAP (10 cm cells; x: -5.3 .. 3.1 left to right; '#' solid, 'x' capsule does not fit, '!' slack<8cm, ':' <18cm, '.' <38cm, '_' roomy):
+  |                                                                                     | z=9.9
+  |                             ############################## ##################       | z=9.8
+  |                             #################################################       | z=9.7
+  |                             #########################xxxxxxxxxxxxxxxxxxxxxx##       | z=9.6
+  |                             #########################xxxxxxxxxxxxxxxxxxxxxx##       | z=9.5
+  |                             #########################x!::::::::::::::::::xx##       | z=9.4
+  |                             #########################x!.................:xx##       | z=9.3
+  |                             ########################xx!._______________.:xx##       | z=9.2
+  |                             ####################xxxxxx:._______________.:xx##       | z=9.1
+  |                             ####################x!!!::.________________.:xx##       | z=9.0
+  |                             ####################x!...._________________.:xx##       | z=8.9
+  |                             ####################x!.____________________.:xx##       | z=8.8
+  |                             ####################x!.____________________.:xx##       | z=8.7
+  |                             ####################x!.____________________.:xx##       | z=8.6
+  |                             ####################x!.________________.....:xx##       | z=8.5
+  |                             ####################x!._______________..:!!!!xx##       | z=8.4
+  |                             ####################x!._______________.!xxxxxxx##       | z=8.3
+  |                             ####################x!.______________.:xx########       | z=8.2
+  |                             ####################x!.______________.:xx########       | z=8.1
+  |                             ####################x!.______________.:xx########       | z=8.0
+  |                             ####################x!.______________.:xx##xxxx##       | z=7.9
+  |                             ################## #x!.______________.:xx##xxxx##       | z=7.8
+  |                             ################## #x!.._____________.:xx##xxxx##       | z=7.7
+  |                             ################## #x!::..___________.:xx##xxxx##       | z=7.6
+  |                             ###################xxxxx:.___________.:xx##xxxx##       | z=7.5
+  |                             ####xxxxxxxxxxxxxxxxxxxxx:.__________.:xx##xxxx##       | z=7.4
+  |                             ####xxxxxxxxxxxxxxxxx###x!.__________.:xx##xxxx##       | z=7.3
+  |                             ####xxxxxxxxx::::::xx##xx!.__________.:xx##xxxx##       | z=7.2
+  |                             ###########xx:....:xx##xx:.__________.:xx##xxxx##       | z=7.1
+  |                             ###########xx:.__.!x###xx:.__________.:xx########       | z=7.0
+  |                             ###########xx:...:xx###x!._...........:xx########       | z=6.9
+  |                             ###########xx:::::xx##xx:..::::::::::::xx########       | z=6.8
+  |                             ###########xxxxxxxxx##xx:.:xxxxxxxxxxxxxxxxxxxx##       | z=6.7
+  |                             ###########xxxxxxxx###xx..!xxxxxxxxxxxxxxxxxxxx##       | z=6.6
+  |                             ######################x!.:xx#####################       | z=6.5
+  |                                                ##xx:.:xx###                         | z=6.4
+  |                                               ###xx:.:xx###                         | z=6.3
+  |                                               ##xx!._.!xx##                         | z=6.2
+  |                                               ##xx:._.:xx##                         | z=6.1
+  |                                               ##x!.___.!x##                         | z=6.0
+  |                                               ##x!.___.!x##                         | z=5.9
+  |                                               ##x!.___.!x##                         | z=5.8
+  |                                               ##x!.___.!x########## ####### ####### | z=5.7
+  |                                               ##x!.___.!x#######################x## | z=5.6
+  |                                               ##x!.___.!x####### ###########x# #### | z=5.5
+  |                                               ##x!.___.!x####### ###########xx #### | z=5.4
+  |                                               ##x!.___.!x####### ###########x# #### | z=5.3
+  |                                               ##x!.___.!x######## ########### ##x## | z=5.2
+  |                                               ##x!.___.!x####xxx#####     #####xx## | z=5.1
+  |                                               ##x!.___.!x####xxxxx###########xxxx## | z=5.0
+  |                                               ##x!.___.!x####x!!xxxxxxxxxxxxxxxxx## | z=4.9
+  |                                               ##x!.___.!x####x!.::!!!xxxxx!!!::xx## | z=4.8
+  |                                               ##x!.___.!x####x!...............:xx## | z=4.7
+  |  ###############################################x!.___.!x####x!.____________..:xx## | z=4.6
+  | ################################################x!.___.!x####x!.____....___.:!xxx## | z=4.5
+  | ##x#####xxxxxxxx#########xxxxxxxxxxxxxxx########x!.___.!xx##xx!.__..::::...:!xxxx## | z=4.4
+  | ########xxxxxxxx#########xxxxxxxxxxxxxxx########x!.___.:xxxxxx:._..!xxxx!..!xx##### | z=4.3
+  | #########xx:::!xxxxxxxxxxx!:::::::::::!x########x!.____.::!!::.__.!xxxxxx!.xx###### | z=4.2
+  | #########xx!..:!xxxxxxxxx!:..:!xx:....!x########x!._____.........:xx####xx:xx###### | z=4.1
+  | ##########x!._..:::::::::..::xxxxx:..:xx########x!.____.::!!!!!!!!x##  ##x!xx###### | z=4.0
+  | ##x#####xxx:.___..........:!xxx##xx:.!xx########x!.___.:xxxxxxxxxxx# ## #xxxx###### | z=3.9
+  | ##x####xxx!.._________..:!xxx####xx!.!x#########x!.___.!xx########## ## #xxxx###### | z=3.8
+  | ##xx#xxx!:.._________..!xxx#######xx:!x#########x!.___.!x#  ######## ## #xxxxx##### | z=3.7
+  | ##xxxxx:..___________.:xxx########xx!!x#########x!.___.!x############  ##xxxxxxxx## | z=3.6
+  | ##xx!!:..____________.xx###########xx!x#########x!.___.!x########################## | z=3.5
+  | ##xx:..______________.!x############xxx#########x!.___.!x#########################  | z=3.4
+  | ##xx:::...___________.:xx###########xxx#########x!.___.!x##                         | z=3.3
+  | ##xxxxxx!..__________.:xx############xxxxxxx####x!.___.!x##                         | z=3.2
+  | ##xxxxxxx:.___________.:xx###########xxxxxxx####x!.___.!x##                         | z=3.1
+  | ########xx......_______.!xx########xxx:.::!x####x!.___.!x##                         | z=3.0
+  | ########xx!!!!!:.______.:xx#######xxx!.._.!x####x!.___.!x##                         | z=2.9
+  | ########xxxxxxxx:.______.!xx####xxx!:..__.!x####x!.___.!x##                         | z=2.8
+  | ########x######x!.______.:xx##xxx!:..____.!x####x!.___.!x##                         | z=2.7
+  | ########x######xx.........:xxxxx::.______.!x####x!.___.!x##                         | z=2.6
+  | ########x######xx:::::::::::xx!:.._______.!x####x!.___.!x##                         | z=2.5
+  | ########x######xxxxxxxxxxxx!...._________.!x#  #x!.___.!x##                         | z=2.4
+  | ########x######xxxxxxxxxxxxx:.___________.!xxxxxx!.___.!x##                         | z=2.3
+  | ########x#################xx!.___________.:xxxxxx:.___.!x##                         | z=2.2
+  | ########x######           xx!.____________.::!!::.____.!x##                         | z=2.1
+  | ########x######           xx!._____________......_____.!x##                         | z=2.0
+  | ########x######           xx!.________________________.!x##                         | z=1.9
+  | ########x######           xx!.________________________.!x##                         | z=1.8
+  | ########x######           xx!.________________________.!x##                         | z=1.7
+  | ########xxxxxxx###########xx!._____________......_____.!x##                         | z=1.6
+  | ########xx!!!xxxxxxxxxxxxxxx:.____________.::!!::.____.!x##                         | z=1.5
+  | ########xx...!xxxxxxxxxxxxx!..___________.:xxxxxx:.___.!x##                         | z=1.4
+  | ##xxxxxxx:::::::::::::::::::::.._________.!xx##xx!._...!x##                         | z=1.3
+  | ##xxxxxxxxxxxxxxxxxxxxxxxxxxxx!:.________.!x#  #x!...:xxx##                         | z=1.2
+  | ##xx:!xxxxxxxxxxxxxxxxxxxxxxxxx!.________.!x####x!..:xxxx##                         | z=1.1
+  | ##xx:xx#######################xx:._______.!x####x!..!x#####                         | z=1.0
+  | ##xx:xx#######################xx:._______.!x####x!..!x#####                         | z=0.9
+  | ##xx:xx#######################xx:._______.!x####x!..!x#####                         | z=0.8
+  | ##xx:xx#######################xx:._______.!x####x!..!x#####                         | z=0.7
+  | ##xx:xx#######################xx:._______.!x####x!..!x#####                         | z=0.6
+  | ##xx:xx#######################xx:.........!x####x!..:xxxx##                         | z=0.5
+  | ##xx:xx#######################xx::::::::::!x####x!...:xxx##                         | z=0.4
+  | ##xxxxx#######################xxxxxxxxxxxxxx####xx!!!!!xx##                         | z=0.3
+  | ##xxxxx#######################xxxxxxxxxxxxxx####xxxxxxxxx##                         | z=0.2
+  | ###########################################################                         | z=0.1
+  |  ############################################  ###########                          | z=0.0
+  |                                                                                     | z=-0.1
+  |                                                                                     | z=-0.2
+SCRIPTED PLAYER TARGETS (capsule r 0.26 at the target):
+  T _sit_at_piano (piano_seat)               (-4.05,2.20) clearance 0.00 INSIDE ["Flat/Living/Bench box 0.85x0.52x0.38@(-4.05,0.26,2.20)"]  unstick-> (-3.40,2.58) clearance 0.42
+  T _stand_up tween target (seat + 0.62 x)   (-3.43,2.20) clearance 0.00 INSIDE ["Flat/Living/CoffeeTable box 1.00x0.45x0.56@(-3.20,0.22,1.90)"]  unstick-> (-3.28,2.46) clearance 0.27
+  T wash tween target (sink_stand)           (2.25,4.00) clearance 0.28 FREE
+  T wardrobe_in (hide)                       (2.05,7.50) clearance 0.27 FREE
+  T wardrobe_front (leave hide)              (1.20,7.50) clearance 0.51 FREE
+  T autoplay piano return (seat + 0.5 x)     (-3.55,2.20) clearance 0.00 INSIDE ["Flat/Living/CoffeeTable box 1.00x0.45x0.56@(-3.20,0.22,1.90)"]  unstick-> (-3.40,2.46) clearance 0.27
+  T front_inside                             (0.00,0.70) clearance 0.27 FREE  unstick-> (0.00,1.00) clearance 0.27
+  T escape                                   (1.20,9.40) clearance 0.31 FREE
+HUSBAND PARKED (capsule r 0.22): widest route for the player (needs 0.52)
+  M armchair (sitting)                   (-2.20,3.30) (his own clearance 0.00) | piano pocket>front_inside: 0.52 | sink_stand>living door: 0.56 | hall_mid>escape window: 0.62 | hall_mid>front_inside: 0.52
+  M just up from the chair               (-1.84,3.51) (his own clearance 0.00) | piano pocket>front_inside: 0.52 | sink_stand>living door: 0.56 | hall_mid>escape window: 0.62 | hall_mid>front_inside: 0.52
+  M MAN_WATCH (while you go to wash)     (-1.25,0.95) (his own clearance 0.51) | piano pocket>front_inside: 0.52 | sink_stand>living door: 0.56 | hall_mid>escape window: 0.62 | hall_mid>front_inside: 0.52
+  M hall, by her photograph              (-0.32,4.85) (his own clearance 0.27) | piano pocket>front_inside: 0.52 | sink_stand>living door: 0.56 | hall_mid>escape window: 0.62 | hall_mid>front_inside: 0.52
+  M hall (0,2.6) after the wire          (0.00,2.60) (his own clearance 0.57) | piano pocket>front_inside: 0.52 | sink_stand>living door: BLOCKED | hall_mid>escape window: src-overlap | hall_mid>front_inside: src-overlap
+  M FACE_SPOT                            (-4.38,1.54) (his own clearance 0.16) | piano pocket>front_inside: 0.52 | sink_stand>living door: 0.56 | hall_mid>escape window: 0.62 | hall_mid>front_inside: 0.52
+  M WATCH_SPOT (suspicious)              (-3.30,2.70) (his own clearance 0.53) | piano pocket>front_inside: src-overlap | sink_stand>living door: 0.56 | hall_mid>escape window: 0.62 | hall_mid>front_inside: 0.52
+  M knife test                           (-3.75,2.95) (his own clearance 0.34) | piano pocket>front_inside: 0.52 | sink_stand>living door: 0.56 | hall_mid>escape window: 0.62 | hall_mid>front_inside: 0.52
+  M wire offer (seat+0.6,0.7)            (-3.45,2.90) (his own clearance 0.49) | piano pocket>front_inside: src-overlap | sink_stand>living door: 0.56 | hall_mid>escape window: 0.62 | hall_mid>front_inside: 0.52
+  M head scene end (seat+1.4,0.4)        (-2.65,2.60) (his own clearance 0.35) | piano pocket>front_inside: BLOCKED | sink_stand>living door: 0.56 | hall_mid>escape window: 0.62 | hall_mid>front_inside: 0.52
+  M fake charge start (sink-1.4,+0.3)    (0.85,4.30) (his own clearance 0.23) | piano pocket>front_inside: 0.52 | sink_stand>living door: BLOCKED | hall_mid>escape window: 0.62 | hall_mid>front_inside: 0.52
+  M fake charge end (sink-0.5,+0.32)     (1.75,4.32) (his own clearance 0.23) | piano pocket>front_inside: 0.52 | sink_stand>living door: BLOCKED | hall_mid>escape window: 0.62 | hall_mid>front_inside: 0.52
+  M chase ROUTE (0,4.1)                  (0.00,4.10) (his own clearance 0.57) | piano pocket>front_inside: 0.52 | sink_stand>living door: BLOCKED | hall_mid>escape window: BLOCKED | hall_mid>front_inside: 0.52
+  M chase ROUTE (1.3,7.5) wardrobe check (1.30,7.50) (his own clearance 0.41) | piano pocket>front_inside: 0.52 | sink_stand>living door: 0.56 | hall_mid>escape window: 0.62 | hall_mid>front_inside: 0.52
+  M bedroom doorway (0,6.4)              (0.00,6.40) (his own clearance 0.40) | piano pocket>front_inside: 0.52 | sink_stand>living door: 0.56 | hall_mid>escape window: BLOCKED | hall_mid>front_inside: 0.52
+  M living doorway (-0.65,1.8)           (-0.65,1.80) (his own clearance 0.60) | piano pocket>front_inside: BLOCKED | sink_stand>living door: BLOCKED | hall_mid>escape window: 0.62 | hall_mid>front_inside: 0.52
+  M bath doorway (0.65,4.1)              (0.65,4.10) (his own clearance 0.39) | piano pocket>front_inside: 0.52 | sink_stand>living door: BLOCKED | hall_mid>escape window: 0.62 | hall_mid>front_inside: 0.52
+  M front door (0,0.5)                   (0.00,0.50) (his own clearance 0.31) | piano pocket>front_inside: BLOCKED | sink_stand>living door: 0.56 | hall_mid>escape window: 0.62 | hall_mid>front_inside: BLOCKED
+  [flat report: 1368 ms]
+INTERACTABLE REACH (floor area from which the prompt can appear; needs the crosshair on the box):
+  I piano          at (-4.05,0.60,2.20) size (0.60,0.80,1.00) : 3.01 m2 of floor (0.00 m2 only THROUGH a solid body)  cells x[-4.85,-2.25] z[1.25,4.15]
+  I flat_phone     at (-1.00,0.85,3.58) size (0.40,0.30,0.40) : 3.97 m2 of floor (2.59 m2 only THROUGH a solid body)  cells x[-2.70,0.70] z[1.85,5.20]
+  I front_door     at (0.00,1.00,0.15) size (0.90,2.00,0.30) : 2.40 m2 of floor (1.34 m2 only THROUGH a solid body)  cells x[-2.05,0.30] z[0.30,1.95]
+  I coat           at (0.45,1.25,0.80) size (0.30,0.90,0.70) : 2.44 m2 of floor (1.05 m2 only THROUGH a solid body)  cells x[-1.35,0.30] z[0.35,2.75]
+  I sink           at (2.60,0.95,4.00) size (0.50,0.40,0.60) : 1.17 m2 of floor (0.00 m2 only THROUGH a solid body)  cells x[0.80,2.65] z[3.75,4.90]
+  I cabinet        at (2.85,1.55,4.00) size (0.30,0.60,0.60) : 1.02 m2 of floor (0.00 m2 only THROUGH a solid body)  cells x[1.05,2.65] z[3.75,4.90]
+  I towels         at (1.00,1.20,5.60) size (0.50,0.50,0.30) : 3.84 m2 of floor (2.70 m2 only THROUGH a solid body)  cells x[-0.30,2.65] z[3.85,7.40]
+  I window_escape  at (1.20,1.20,9.65) size (1.20,1.20,0.30) : 3.32 m2 of floor (0.00 m2 only THROUGH a solid body)  cells x[-0.30,2.05] z[7.85,9.45]
+  I wardrobe       at (1.70,1.10,7.50) size (0.40,1.80,1.20) : 4.83 m2 of floor (0.11 m2 only THROUGH a solid body)  cells x[-0.15,2.05] z[5.85,9.45]
+  I drawer         at (-1.90,0.80,7.00) size (0.60,0.40,0.50) : 0.09 m2 of floor (0.03 m2 only THROUGH a solid body)  cells x[-0.30,-0.10] z[6.00,8.00]
+  [interact reach flat: 82 ms]
+
+===== HOME =====
+  [clearance home: 73 ms]
+WIDEST ROUTE from home_start (39.60,1.60):
+  R phone table front                  (40.70,3.00) -> width 0.59 m (slack +0.07) pinch at (40.70,3.00) between ["Flat/Home/Table box 1.00x0.75x0.60@(40.90,0.38,3.60)"]
+  R home_out (door)                    (40.95,0.60) -> width 1.14 m (slack +0.62) pinch at (40.95,0.60) between ["Flat/Home box 0.16x2.75x4.00@(41.60,1.38,2.00)", "Flat/Home/Leaf box 0.90x2.05x0.05@(40.95,1.02,0.00)"]
+  R cane corner                        (41.20,0.50) -> width 0.63 m (slack +0.11) pinch at (41.20,0.50) between ["Flat/Home box 0.16x2.75x4.00@(41.60,1.38,2.00)"]
+  R keyboard front                     (38.95,0.90) -> width 0.77 m (slack +0.25) pinch at (38.95,0.90) between ["Flat/Home/Keyboard box 1.15x0.85x0.35@(38.95,0.42,0.34)"]
+  R bed side                           (39.30,2.90) -> width 0.70 m (slack +0.18) pinch at (39.30,2.90) between ["Flat/Home/IronBed box 0.90x0.55x2.00@(38.50,0.27,2.90)"]
+  R bed foot / keyboard                (38.50,1.30) -> width 0.84 m (slack +0.32) pinch at (38.50,1.30) between ["Flat/Home box 0.16x2.75x4.00@(38.00,1.38,2.00)"]
+COMPONENTS at r=0.26: 1 (main has 2685 cells = 6.7 m2)
+  |                                       | z=4.1
+  |  ###################################  | z=4.0
+  | #         ########################### | z=3.9
+  | ###########xxxxxxxxxxxxx ######### ## | z=3.8
+  | ###########xxxxxxxxxxxxx ######### ## | z=3.7
+  | ###########xx::::::::!xx ######### ## | z=3.6
+  | ###########xx:.......!xx ######### ## | z=3.5
+  | ###########xx:._____.!xx ######### ## | z=3.4
+  | ###########xx:._____.!xx ######### ## | z=3.3
+  | ###########xx:._____.:xx############# | z=3.2
+  | ###########xx:._____..!xxxxxxxxxxxx## | z=3.1
+  | ###########xx:.______..:!!!!!!!!!xx## | z=3.0
+  | ###########xx:._______..........:xx## | z=2.9
+  | ###########xx:.________________.:xx## | z=2.8
+  | ###########xx:.________________.:xx## | z=2.7
+  | ###########xx:.________________.:xx## | z=2.6
+  | ###########xx:.________________.:xx## | z=2.5
+  | ###########xx:.________________.:xx## | z=2.4
+  | ###########xx:.________________.:xx## | z=2.3
+  | ###########xx:.________________.:xx## | z=2.2
+  | ###########xx:.________________.:xx## | z=2.1
+  | ###########xx:.________________.:xx## | z=2.0
+  | ###########xx:.________________.:xx## | z=1.9
+  | ##########xx!._________________.:xx## | z=1.8
+  | ##xxxxxxxxxx:._________________.:xx## | z=1.7
+  | ##xx!!!!!!::.__________________.:xx## | z=1.6
+  | ##xx:.......___________________.:xx## | z=1.5
+  | ##xx:._________________________.:xx## | z=1.4
+  | ##xx:._________________________.:xx## | z=1.3
+  | ##xx:._________________________.:xx## | z=1.2
+  | ##xx:._________________________.:xx## | z=1.1
+  | ##xx:._________________________.:xx## | z=1.0
+  | ##xx:............._____________.:xx## | z=0.9
+  | ##xx!!!!!!!!!!!!!:.____________.:xx## | z=0.8
+  | ##xxxxxxxxxxxxxxxx:.___________.:xx## | z=0.7
+  | ##xx############xx!.___________.:xx## | z=0.6
+  | ##x##############x!........____.:xx## | z=0.5
+  | ##x##############x!::::::::.....:xx## | z=0.4
+  | ##x##############xxxxxxxxxx!!!!!!xx## | z=0.3
+  | ##x##############xxxxxxxxxxxxxxxxxx## | z=0.2
+  | ##################################### | z=0.1
+  |  ######################## ##########  | z=0.0
+  |                                       | z=-0.1
+INTERACTABLE REACH (floor area from which the prompt can appear; needs the crosshair on the box):
+  I home_door      at (40.95,1.00,0.15) size (0.90,2.00,0.30) : 2.97 m2 of floor (0.10 m2 only THROUGH a solid body)  cells x[39.00,41.25] z[0.30,1.95]
+  I home_phone     at (40.70,0.86,3.60) size (0.40,0.30,0.40) : 2.72 m2 of floor (0.00 m2 only THROUGH a solid body)  cells x[39.25,41.25] z[1.90,3.65]
+  I glasses        at (41.15,0.80,3.50) size (0.30,0.20,0.30) : 2.02 m2 of floor (1.39 m2 only THROUGH a solid body)  cells x[39.50,41.25] z[1.85,3.65]
+  I cane           at (41.40,0.90,0.40) size (0.30,1.00,0.30) : 2.47 m2 of floor (0.00 m2 only THROUGH a solid body)  cells x[39.65,41.25] z[0.35,2.15]

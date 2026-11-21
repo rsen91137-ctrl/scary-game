@@ -1,0 +1,149 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+WORLD built in 721 ms; physics setting=DEFAULT
+
+===== FLAT (speed 1.05) from (0.00,0.00,3.00) =====
+  [explore: 7029 ms]
+REACHED 2011 cells of 10 cm (20.1 m2)
+  by height (0.3 m bands): 0.0:2011 
+FALLS OUT OF THE WORLD: 0 moves
+  (0 distinct 30 cm areas you can fall from)
+DROPS (>12 cm down in one move): 0
+ONE-WAY CELLS (reached, but no recorded way back to the start): 0
+  confirmed by walking the way back: 0
+WHAT STOPS A MOVE DEAD (moved < 3 cm in 7 frames), top 12:
+  B    33  Flat/Living/Sofa box 2.10x0.85x0.90@(-3.40,0.42,0.52)
+  B    31  Flat/Living/CoffeeTable box 1.00x0.45x0.56@(-3.20,0.22,1.90)
+  B    31  Flat/Living/Armchair box 0.80x0.90x0.78@(-2.20,0.45,3.30)
+  B    25  Flat/Living box 4.55x0.10x4.60@(-2.92,-0.05,2.30)
+  B    25  Flat/Hall box 0.16x2.75x1.90@(0.65,1.38,5.45)
+  B    24  Flat/Bed box 4.80x0.10x3.40@(0.00,-0.05,8.10)
+  B    23  Flat/Living box 0.16x2.75x1.20@(-0.65,1.38,0.60)
+  B    21  Flat/Living box 0.16x2.75x2.20@(-0.65,1.38,3.50)
+  B    19  Flat/Living/Bench box 0.85x0.52x0.38@(-4.05,0.26,2.20)
+  B    17  Flat/Hall box 0.16x2.75x3.70@(0.65,1.38,1.85)
+  B    17  Flat/Bed box 0.16x2.75x3.40@(2.40,1.38,8.10)
+  B    16  Flat/Bed box 1.95x2.75x0.16@(1.42,1.38,6.40)
+  [report: 8 ms]
+UNSTICK AUDIT: 365 of 2011 reached positions touch something (so a 1.2 s push calls unstick); 363 land on a normal walkable spot; mean jump 0.31 m
+  U     2  NO CANDIDATE (stays stuck)
+        e.g. (-3.37,0.00,1.23) -> - past ["Flat/Living/Sofa box 2.10x0.85x0.90@(-3.40,0.42,0.52)"]
+        e.g. (-3.49,0.00,1.23) -> - past ["Flat/Living/Sofa box 2.10x0.85x0.90@(-3.40,0.42,0.52)"]
+  [unstick audit: 26 ms]
+
+===== HOME (speed 1.05) from (39.60,0.00,1.60) =====
+  [explore: 1506 ms]
+REACHED 742 cells of 10 cm (7.4 m2)
+  by height (0.3 m bands): 0.0:742 
+FALLS OUT OF THE WORLD: 0 moves
+  (0 distinct 30 cm areas you can fall from)
+DROPS (>12 cm down in one move): 0
+ONE-WAY CELLS (reached, but no recorded way back to the start): 0
+  confirmed by walking the way back: 0
+WHAT STOPS A MOVE DEAD (moved < 3 cm in 7 frames), top 12:
+  B    31  Flat/Home box 0.16x2.75x4.00@(41.60,1.38,2.00)
+  B    29  Flat/Home/IronBed box 0.90x0.55x2.00@(38.50,0.27,2.90)
+  B    15  Flat/Home box 3.60x2.75x0.16@(39.80,1.38,4.00)
+  B    14  Flat/Home box 0.16x2.75x4.00@(38.00,1.38,2.00)
+  B    14  Flat/Home box 3.60x0.10x4.00@(39.80,-0.05,2.00)
+  B    11  Flat/Home/Keyboard box 1.15x0.85x0.35@(38.95,0.42,0.34)
+  B    10  Flat/Home box 2.50x2.75x0.16@(39.25,1.38,0.00)
+  B     6  Flat/Home/Table box 1.00x0.75x0.60@(40.90,0.38,3.60)
+  B     3  Flat/Home/Leaf box 0.90x2.05x0.05@(40.95,1.02,0.00)
+  B     1  Flat/Home box 0.20x2.75x0.16@(41.50,1.38,0.00)
+  [report: 2 ms]
+UNSTICK AUDIT: 93 of 742 reached positions touch something (so a 1.2 s push calls unstick); 93 land on a normal walkable spot; mean jump 0.30 m
+  [unstick audit: 7 ms]
+
+===== STAIRS (speed 1.05) from (-0.68,0.05,-39.60) =====
+  [explore: 13287 ms]
+REACHED 5388 cells of 10 cm (53.9 m2)
+  by height (0.3 m bands): 0.0:602 0.3:38 0.6:43 0.9:45 1.2:39 1.5:256 1.8:42 2.1:35 2.4:36 2.7:40 3.0:613 3.3:42 3.6:35 3.9:38 4.2:152 4.5:252 4.8:39 5.1:45 5.4:38 5.7:579 6.0:96 6.3:38 6.6:46 6.9:46 7.2:215 7.5:85 7.8:44 8.1:39 8.4:47 8.7:1678 9.0:45 
+FALLS OUT OF THE WORLD: 1017 moves
+  VOID from (0.46,-0.01,-38.63) heading (0.0,1.0)
+  VOID from (0.38,-0.02,-38.59) heading (0.7,0.7)
+  VOID from (0.55,-0.05,-38.54) heading (0.7,0.7)
+  VOID from (0.38,-0.06,-38.54) heading (0.7,0.7)
+  VOID from (0.78,-0.01,-38.63) heading (0.0,1.0)
+  VOID from (0.80,-0.06,-38.53) heading (0.7,0.7)
+  VOID from (1.78,8.63,-38.46) heading (1.0,0.0)
+  VOID from (1.67,8.69,-38.20) heading (1.0,0.0)
+  VOID from (1.78,8.63,-38.58) heading (1.0,0.0)
+  VOID from (1.71,8.68,-38.88) heading (1.0,0.0)
+  VOID from (1.72,8.67,-37.91) heading (1.0,0.0)
+  VOID from (1.70,8.68,-39.17) heading (1.0,0.0)
+  (81 distinct 30 cm areas you can fall from)
+DROPS (>12 cm down in one move): 1279
+  DROP (-0.52,1.62,-36.29) -> (-0.52,1.45,-36.11) (0.17 m)
+  DROP (-0.61,1.57,-36.21) -> (-0.52,1.45,-36.11) (0.12 m)
+  DROP (-0.12,1.60,-36.25) -> (-0.02,1.45,-36.12) (0.15 m)
+  DROP (0.23,3.07,-38.98) -> (0.23,2.90,-39.15) (0.17 m)
+  DROP (0.31,3.05,-39.01) -> (0.22,2.90,-39.15) (0.15 m)
+  DROP (0.66,3.07,-38.98) -> (0.66,2.90,-39.15) (0.17 m)
+  DROP (0.75,3.05,-39.02) -> (0.66,2.90,-39.15) (0.15 m)
+  DROP (0.10,3.05,-39.01) -> (-0.00,2.90,-39.13) (0.15 m)
+  DROP (-0.19,4.51,-36.27) -> (-0.10,4.35,-36.11) (0.16 m)
+  DROP (-0.30,4.48,-36.22) -> (-0.21,4.35,-36.11) (0.13 m)
+  DROP (-0.73,4.52,-36.31) -> (-0.73,4.35,-36.11) (0.17 m)
+  DROP (0.25,5.97,-38.96) -> (0.25,5.80,-39.15) (0.17 m)
+  DROP (0.57,5.95,-39.01) -> (0.48,5.80,-39.15) (0.15 m)
+  DROP (0.65,5.97,-38.97) -> (0.65,5.80,-39.15) (0.17 m)
+ONE-WAY CELLS (reached, but no recorded way back to the start): 3394
+  confirmed by walking the way back: 3381
+  ONE-WAY x432 e.g. from (-0.10,4.35,-36.11): stops at (-0.20,4.35,-36.11) heading for (-0.19,4.51,-36.27) against ["Stairs/Floor1 box 2.60x0.20x1.35@(0.00,4.25,-35.89)"]
+  ONE-WAY x80 e.g. from (-0.38,4.35,-36.11): stops at (-0.28,4.35,-36.11) heading for (-0.30,4.48,-36.22) against ["Stairs/Floor1 box 1.21x0.10x3.07@(-0.69,3.66,-37.63)", "Stairs/Floor1 box 2.60x0.20x1.35@(0.00,4.25,-35.89)"]
+  ONE-WAY x9 e.g. from (-0.82,4.35,-36.02): stops at (-0.77,4.35,-36.11) heading for (-0.73,4.52,-36.31) against ["Stairs/Floor1 box 1.21x0.10x3.07@(-0.69,3.66,-37.63)", "Stairs/Floor1 box 2.60x0.20x1.35@(0.00,4.25,-35.89)"]
+  ONE-WAY x549 e.g. from (0.25,5.80,-39.15): stops at (0.25,5.80,-39.15) heading for (0.25,5.97,-38.96) against ["Stairs/Floor2 box 2.60x0.20x3.10@(0.00,5.70,-40.25)"]
+  ONE-WAY x243 e.g. from (0.33,5.80,-39.15): stops at (0.33,5.80,-39.15) heading for (0.33,5.97,-38.98) against ["Stairs/Floor1 box 1.21x0.10x3.07@(0.69,5.11,-37.63)", "Stairs/Floor2 box 2.60x0.20x3.10@(0.00,5.70,-40.25)"]
+  ONE-WAY x9 e.g. from (0.86,5.80,-39.15): stops at (0.86,5.80,-39.15) heading for (0.86,5.95,-39.02) against ["Stairs/Floor1 box 1.21x0.10x3.07@(0.69,5.11,-37.63)", "Stairs/Floor2 box 2.60x0.20x3.10@(0.00,5.70,-40.25)"]
+  ONE-WAY x649 e.g. from (-0.11,7.25,-36.11): stops at (-0.21,7.25,-36.11) heading for (-0.20,7.41,-36.27) against ["Stairs/Floor2 box 1.21x0.10x3.07@(-0.69,6.56,-37.63)", "Stairs/Floor2 box 2.60x0.20x1.35@(0.00,7.15,-35.89)"]
+  ONE-WAY x21 e.g. from (-0.38,7.25,-36.11): stops at (-0.27,7.25,-36.11) heading for (-0.29,7.38,-36.22) against ["Stairs/Floor2 box 2.60x0.20x1.35@(0.00,7.15,-35.89)"]
+  ONE-WAY x519 e.g. from (-0.19,7.25,-36.02): stops at (-0.20,7.25,-36.11) heading for (-0.20,7.41,-36.27) against ["Stairs/Floor2 box 2.60x0.20x1.35@(0.00,7.15,-35.89)"]
+  ONE-WAY x14 e.g. from (-0.47,7.25,-36.02): stops at (-0.30,7.25,-36.11) heading for (-0.29,7.38,-36.22) against ["Stairs/Floor2 box 2.60x0.20x1.35@(0.00,7.15,-35.89)"]
+  ONE-WAY x2 e.g. from (-0.76,7.25,-36.11): stops at (-0.76,7.25,-36.11) heading for (-0.76,7.42,-36.30) against ["Stairs/Floor2 box 2.60x0.20x1.35@(0.00,7.15,-35.89)"]
+  ONE-WAY x1 e.g. from (-1.00,7.25,-36.09): stops at (-1.00,7.25,-36.11) heading for (-1.00,7.38,-36.21) against ["Stairs/Floor2 box 1.21x0.10x3.07@(-0.69,6.56,-37.63)", "Stairs/Floor2 box 2.60x0.20x1.35@(0.00,7.15,-35.89)"]
+  ONE-WAY x15 e.g. from (0.35,8.44,-38.13): stops at (0.34,8.50,-38.22) heading for (0.25,8.64,-38.21) against ["Stairs/Floor2 box 1.21x0.10x3.07@(0.69,8.01,-37.63)"]
+  ONE-WAY x1 e.g. from (-0.15,8.69,-38.80): stops at (-0.15,8.69,-38.80) heading for (-0.10,8.70,-38.68) against ["Stairs/Floor2 box 0.18x2.90x2.24@(0.00,7.25,-37.63)"]
+  ONE-WAY x3 e.g. from (-0.28,8.62,-37.94): stops at (-0.35,6.40,-38.04) heading for (-0.19,8.68,-38.03) against ["Stairs/Floor2 box 0.18x2.90x2.24@(0.00,7.25,-37.63)", "Stairs/Floor2 box 1.21x0.10x3.07@(-0.69,6.56,-37.63)"]
+  ONE-WAY x1 e.g. from (-0.27,8.62,-38.79): stops at (-0.35,6.14,-38.43) heading for (-0.17,8.69,-38.46) against ["Stairs/Floor2 box 0.18x2.90x2.24@(0.00,7.25,-37.63)", "Stairs/Floor2 box 1.21x0.10x3.07@(-0.69,6.56,-37.63)"]
+  ONE-WAY x558 e.g. from (1.18,8.67,-39.17): stops at (1.18,8.67,-39.17) heading for (1.18,8.87,-38.96) against ["Stairs/Floor2 box 1.21x0.10x3.07@(0.69,8.01,-37.63)", "Stairs/Floor2 box 0.30x2.90x7.09@(1.45,7.25,-38.51)"]
+  ONE-WAY x19 e.g. from (1.53,8.70,-39.00): stops at (1.53,8.70,-39.00) heading for (1.38,8.87,-38.88) against ["Stairs/Floor2 box 0.30x2.90x7.09@(1.45,7.25,-38.51)"]
+  ONE-WAY x8 e.g. from (1.56,8.70,-38.97): stops at (1.51,8.70,-38.73) heading for (1.38,8.85,-38.79) against ["Stairs/Floor2 box 0.30x2.90x7.09@(1.45,7.25,-38.51)"]
+  ONE-WAY x1 e.g. from (1.04,8.26,-37.85): stops at (1.04,8.25,-37.85) heading for (1.20,8.68,-37.85) against ["Stairs/Floor2 box 1.21x0.10x3.07@(0.69,8.01,-37.63)"]
+  ONE-WAY x1 e.g. from (1.12,8.62,-39.79): stops at (1.04,5.80,-39.43) heading for (1.13,8.64,-39.43) against ["Stairs/Floor2 box 0.30x2.90x7.09@(1.45,7.25,-38.51)", "Stairs/Floor2 box 2.60x0.20x3.10@(0.00,5.70,-40.25)"]
+  ONE-WAY x2 e.g. from (0.35,7.50,-36.69): stops at (0.35,7.56,-36.78) heading for (0.22,8.66,-36.77) against ["Stairs/Floor2 box 0.18x2.90x2.24@(0.00,7.25,-37.63)", "Stairs/Floor2 box 1.21x0.10x3.07@(0.69,8.01,-37.63)"]
+  ONE-WAY x1 e.g. from (-0.27,8.62,-36.70): stops at (-0.35,7.03,-37.06) heading for (-0.26,8.64,-37.07) against ["Stairs/Floor2 box 0.18x2.90x2.24@(0.00,7.25,-37.63)", "Stairs/Floor2 box 1.21x0.10x3.07@(-0.69,6.56,-37.63)"]
+  ONE-WAY x1 e.g. from (1.12,8.62,-37.36): stops at (1.04,7.84,-37.21) heading for (1.25,8.69,-37.23) against ["Stairs/Floor2 box 0.30x2.90x7.09@(1.45,7.25,-38.51)", "Stairs/Floor2 box 1.21x0.10x3.07@(0.69,8.01,-37.63)"]
+  ONE-WAY x1 e.g. from (1.12,8.62,-36.87): stops at (1.04,7.72,-37.02) heading for (1.25,8.69,-36.99) against ["Stairs/Floor2 box 0.30x2.90x7.09@(1.45,7.25,-38.51)", "Stairs/Floor2 box 1.21x0.10x3.07@(0.69,8.01,-37.63)"]
+  ONE-WAY x2 e.g. from (1.00,7.35,-36.45): stops at (1.04,7.35,-36.44) heading for (1.25,8.69,-36.45) against ["Stairs/Floor2 box 0.30x2.90x7.09@(1.45,7.25,-38.51)", "Stairs/Floor2 box 1.21x0.10x3.07@(0.69,8.01,-37.63)"]
+  ONE-WAY x1 e.g. from (1.11,8.62,-35.96): stops at (1.04,7.25,-36.08) heading for (1.25,8.69,-36.08) against ["Stairs/Floor2 box 0.30x2.90x7.09@(1.45,7.25,-38.51)", "Stairs/Floor2 box 2.60x0.20x1.35@(0.00,7.15,-35.89)"]
+  ONE-WAY x1 e.g. from (0.97,8.66,-35.41): stops at (1.04,7.25,-35.61) heading for (1.19,8.68,-35.61) against ["Stairs/Floor2 box 0.30x2.90x7.09@(1.45,7.25,-38.51)", "Stairs/Floor2 box 2.60x0.20x1.35@(0.00,7.15,-35.89)"]
+  ONE-WAY x123 e.g. from (-1.13,8.64,-41.46): stops at (-0.90,5.80,-41.49) heading for (-0.89,8.65,-41.60) against ["Stairs/Floor2 box 2.60x2.90x0.30@(0.00,7.25,-41.90)", "Stairs/Floor2 box 2.60x0.20x3.10@(0.00,5.70,-40.25)"]
+  ONE-WAY x18 e.g. from (-1.14,8.64,-35.59): stops at (-1.04,7.25,-35.52) heading for (-1.05,8.68,-35.37) against ["Stairs/Floor2 box 2.60x2.90x0.30@(0.00,7.25,-35.11)", "Stairs/Floor2 box 2.60x0.20x1.35@(0.00,7.15,-35.89)"]
+  ONE-WAY x84 e.g. from (-1.13,8.64,-35.71): stops at (-1.04,7.25,-35.52) heading for (-1.05,8.68,-35.37) against ["Stairs/Floor2 box 2.60x2.90x0.30@(0.00,7.25,-35.11)", "Stairs/Floor2 box 2.60x0.20x1.35@(0.00,7.15,-35.89)"]
+  ONE-WAY x2 e.g. from (-1.11,8.62,-36.27): stops at (-1.04,7.43,-36.37) heading for (-1.20,8.68,-36.35) against ["Stairs/Floor2 box 0.30x2.90x7.09@(-1.45,7.25,-38.51)", "Stairs/Floor2 box 1.21x0.10x3.07@(-0.69,6.56,-37.63)"]
+  ONE-WAY x6 e.g. from (-1.11,8.62,-36.68): stops at (-1.04,7.21,-36.79) heading for (-1.20,8.68,-36.77) against ["Stairs/Floor2 box 0.30x2.90x7.09@(-1.45,7.25,-38.51)", "Stairs/Floor2 box 1.21x0.10x3.07@(-0.69,6.56,-37.63)"]
+  ONE-WAY x1 e.g. from (-1.11,8.62,-39.29): stops at (-1.04,5.80,-39.64) heading for (-1.13,8.64,-39.65) against ["Stairs/Floor2 box 0.30x2.90x7.09@(-1.45,7.25,-38.51)", "Stairs/Floor2 box 2.60x0.20x3.10@(0.00,5.70,-40.25)"]
+  ONE-WAY x1 e.g. from (-1.12,8.63,-37.51): stops at (-1.04,6.90,-37.27) heading for (-1.25,8.70,-37.26) against ["Stairs/Floor2 box 0.30x2.90x7.09@(-1.45,7.25,-38.51)", "Stairs/Floor2 box 1.21x0.10x3.07@(-0.69,6.56,-37.63)"]
+  ONE-WAY x1 e.g. from (-1.12,8.63,-38.00): stops at (-1.04,6.58,-37.76) heading for (-1.25,8.70,-37.75) against ["Stairs/Floor2 box 0.30x2.90x7.09@(-1.45,7.25,-38.51)", "Stairs/Floor2 box 1.21x0.10x3.07@(-0.69,6.56,-37.63)"]
+  ONE-WAY x1 e.g. from (-1.12,8.63,-38.12): stops at (-1.04,6.19,-38.37) heading for (-1.25,8.70,-38.36) against ["Stairs/Floor2 box 0.30x2.90x7.09@(-1.45,7.25,-38.51)", "Stairs/Floor2 box 1.21x0.10x3.07@(-0.69,6.56,-37.63)"]
+WHAT STOPS A MOVE DEAD (moved < 3 cm in 7 frames), top 12:
+  B   101  Stairs/Floor2 box 0.18x2.90x2.24@(0.00,7.25,-37.63)
+  B    72  Stairs/Floor1 box 0.18x2.90x2.24@(0.00,4.35,-37.63)
+  B    71  Stairs/Floor0 box 0.18x2.90x2.24@(0.00,1.45,-37.63)
+  B    56  Stairs/Floor0 box 1.21x0.10x3.07@(-0.69,0.75,-37.63)
+  B    55  Stairs/Floor2 box 1.21x0.10x3.07@(-0.69,6.56,-37.63)
+  B    43  Stairs/Floor1 box 1.21x0.10x3.07@(0.69,5.11,-37.63)
+  B    42  Stairs/Floor1 box 2.60x2.90x0.30@(0.00,4.35,-35.11)
+  B    36  Stairs/Floor1 box 0.30x2.90x7.09@(-1.45,4.35,-38.51)
+  B    35  Stairs/Floor2 box 0.30x2.90x7.09@(-1.45,7.25,-38.51)
+  B    30  Stairs/Floor2 box 1.21x0.10x3.07@(0.69,8.01,-37.63)
+  B    25  Stairs/Floor1 box 1.21x0.10x3.07@(-0.69,3.66,-37.63)
+  B    24  Stairs/Floor2 box 2.60x2.90x0.30@(0.00,7.25,-35.11)
+  [report: 45890 ms]
+UNSTICK AUDIT: 426 of 5388 reached positions touch something (so a 1.2 s push calls unstick); 423 land on a normal walkable spot; mean jump 0.30 m
+  U     3  NO FLOOR under the new spot (falls for ever)
+        e.g. (1.04,0.00,-38.93) -> (0.89,0.00,-38.67) past ["Stairs/Floor0 box 0.30x2.90x7.09@(1.45,1.45,-38.51)"]
+        e.g. (1.04,0.00,-38.81) -> (0.89,0.00,-38.55) past ["Stairs/Floor0 box 0.30x2.90x7.09@(1.45,1.45,-38.51)"]
+        e.g. (1.03,-0.01,-38.62) -> (0.88,-0.01,-38.36) past ["Stairs/Floor0 box 0.30x2.90x7.09@(1.45,1.45,-38.51)"]
+  [unstick audit: 42 ms]
