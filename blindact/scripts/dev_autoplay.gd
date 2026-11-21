@@ -62,6 +62,15 @@ func _process(delta: float) -> void:
 		"flat":
 			if mode == "expose" and _act_t > 15.0 and _once("noise"):
 				game.state.expose("TELL_VOICE")
+			# the owner's test: a scream into the microphone, at any moment at all
+			if mode == "scream" and _act_t > 14.0:
+				if _once("scream"):
+					game.mic.set_process(false)
+					Settings.mic_this_run = true
+					Settings.mic_noise_db = -50.0
+					Settings.mic_voice_db = -25.0
+					print("[auto] screaming: tests open=%d susp=%.0f" % [game.state._tests.size(), game.state.suspicion])
+				game.mic.level_db = -4.0
 			if p.expect_gesture:
 				p.gesture.emit("nod")
 			# walking parts: walk the hall, wash, come back, leave

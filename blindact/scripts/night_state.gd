@@ -159,7 +159,7 @@ func _judge_voice(delta: float) -> void:
 		return
 	var thr := mic.threshold_db()
 	var lvl := mic.level_db
-	var scream := maxf(Settings.mic_voice_db + 5.0, thr + 9.0)
+	var scream := maxf(Settings.mic_voice_db + 7.0, thr + 9.0)
 	if lvl > scream:
 		_loud_t += delta
 		if _loud_t > 0.22:

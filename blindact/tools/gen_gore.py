@@ -141,6 +141,18 @@ def veins(h, w, rng, seeds, n_steps=70, width=3.0) -> np.ndarray:
     return strokes(h, w, paths, 0.8)
 
 
+def mouth_inside(img: np.ndarray, seed: int, k: float = 1.0) -> np.ndarray:
+    """The mouth cavity and gums (two islands of the sheet): black, wet, bloody."""
+    h, w = img.shape[:2]
+    m = np.zeros((h, w), np.float32)
+    m[1740:2040, 1520:1910] = 1.0
+    m[720:940, 0:330] = 1.0
+    m = ndi.gaussian_filter(m, 6)
+    n = fbm(h, w, 18, seed)
+    img = paint(img, m, (0.07, 0.0, 0.004), 0.96 * k)
+    return paint(img, m * sstep(0.5, 0.7, n), (0.32, 0.01, 0.02), 0.8 * k)
+
+
 def neck_line(img: np.ndarray) -> np.ndarray:
     """The ligature mark already painted across the neck (top of the torso)."""
     reg = img[20:260, 480:1080]
@@ -201,7 +213,7 @@ def corpse_skin(src: str, dst: str, seed: int) -> None:
     hands = np.zeros((h, w), np.float32)
     hands[1890:2010, 60:1560] = 1.0
     img = blood(img, hands * sstep(0.5, 0.72, fbm(h, w, 30, seed + 8)) * 0.85)
-    save(dst, img)
+    save(dst, mouth_inside(img, seed + 9, 0.7))
 
 
 # ------------------------------------------------- what panic makes of a face
@@ -271,7 +283,7 @@ def horror_skin(src: str, dst: str, seed: int, pale=(0.80, 0.83, 0.82), flay_sid
     hands = np.zeros((h, w), np.float32)
     hands[1640:2010, 40:1580] = 1.0
     img = blood(img, ndi.gaussian_filter(hands, 30) * sstep(0.4, 0.62, fbm(h, w, 48, seed + 9)))
-    save(dst, img)
+    save(dst, mouth_inside(img, seed + 10))
 
 
 # ------------------------------------------------------------------- eyeballs
@@ -326,8 +338,15 @@ def teeth(src: str, dst: str) -> None:
     img = load(src)
     h, w = img.shape[:2]
     n = fbm(h, w, 20, 3)
-    img = img * np.array([0.8, 0.42, 0.36], np.float32)
-    save(dst, blood(img, sstep(0.45, 0.6, n) * 0.85))
+    img = img * np.array([0.5, 0.26, 0.2], np.float32)
+    save(dst, blood(img, sstep(0.4, 0.58, n) * 0.9))
+
+
+def tongue(src: str, dst: str) -> None:
+    img = load(src)
+    h, w = img.shape[:2]
+    img = img * np.array([0.3, 0.05, 0.06], np.float32)
+    save(dst, blood(img, sstep(0.45, 0.62, fbm(h, w, 16, 5)) * 0.8))
 
 
 # -------------------------------------------------------------------- decals
@@ -376,10 +395,12 @@ def decals() -> None:
     rows = (rows - rows.min()) / (rows.max() - rows.min())
     band = sstep(0.0, 0.2, 1.0 - np.abs(y - c) / (c * 0.86))
     smear = band * sstep(0.3, 0.62, rows[:, None] * 0.75 + fbm(S, S, 96, 64) * 0.55 + hsh * 0.15)
-    save_decal("blood_drag", smear * (0.5 + 0.5 * fbm(S, S, 200, 65)), 0.93)
+    ends = sstep(0.0, 0.2, x / S) * sstep(0.0, 0.2, 1.0 - x / S)
+    save_decal("blood_drag", smear * ends * (0.5 + 0.5 * fbm(S, S, 200, 65)), 0.93)
     # runs down a wall: a slap of blood at the top, long drips
     rng = np.random.default_rng(66)
-    top = sstep(0.4, 0.58, (1.0 - np.abs(y - 70) / 90.0) * 0.8 + fbm(S, S, 48, 67) * 0.6) * (y < 190)
+    win = sstep(0.0, 0.16, x / S) * sstep(0.0, 0.16, 1.0 - x / S) * sstep(0.0, 0.08, y / S)
+    top = sstep(0.4, 0.58, (1.0 - np.abs(y - 70) / 90.0) * 0.8 * win + fbm(S, S, 48, 67) * 0.6 * win) * sstep(200.0, 150.0, y)
     paths = []
     for _ in range(13):
         x0 = rng.uniform(40, S - 40)
@@ -393,6 +414,10 @@ def decals() -> None:
 
 
 def main() -> None:
+    import sys
+    if "--decals" in sys.argv:
+        decals()
+        return
     corpse_skin("woman_skin_albedo", "womanc_skin_albedo", 11)
     eyes("woman_eyes_albedo", "womanc_eyes_albedo", "corpse", 12)
     soak("woman_cloth_albedo", "womanc_cloth_albedo", 13, 0.26, base=(0.80, 0.78, 0.70))
@@ -400,6 +425,9 @@ def main() -> None:
     eyes("woman_eyes_albedo", "womang_eyes_albedo", "horror", 22)
     soak("woman_cloth_albedo", "womang_cloth_albedo", 23, 0.5, base=(0.62, 0.62, 0.58))
     teeth("woman_teeth_albedo", "womang_teeth_albedo")
+    tongue("woman_tongue_albedo", "womang_tongue_albedo")
+    tongue("man_tongue_albedo", "manm_tongue_albedo")
+    tongue("woman_tongue_albedo", "womanc_tongue_albedo")
     horror_skin("man_skin_albedo", "manm_skin_albedo", 31, pale=(0.66, 0.68, 0.72), flay_side=1)
     eyes("man_eyes_albedo", "manm_eyes_albedo", "horror", 32)
     teeth("man_teeth_albedo", "manm_teeth_albedo")

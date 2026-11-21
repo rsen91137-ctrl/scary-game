@@ -150,6 +150,20 @@ def stingers() -> None:
         write_ogg(f"scare_{k:02d}", room(drive(x, 2.2), rng))
 
 
+def screams() -> None:
+    # her scream, close and dry, laid over every big hit
+    specs = ((1.7, 760, 1700, 62), (2.2, 880, 2050, 88), (1.4, 1000, 2300, 104), (2.0, 680, 1520, 48),
+             (1.6, 940, 1880, 76), (2.4, 820, 1960, 58))
+    for i, (dur, lo, hi, r) in enumerate(specs, 1):
+        rng = np.random.default_rng(300 + i)
+        x = shriek(rng, dur, lo, hi, r, 0.55)
+        # a second voice a hair behind it, cracking: one throat tearing
+        y = shriek(rng, dur, lo * 1.007, hi * 0.992, r * 1.31, 0.3)
+        x = x + 0.55 * np.concatenate([np.zeros(300), y[:-300]])
+        x[: int(0.002 * SR)] *= np.linspace(0, 1, int(0.002 * SR))
+        write_ogg(f"scream_{i}", room(drive(x, 3.0), rng, 0.7, 0.16))
+
+
 def extras() -> None:
     rng = np.random.default_rng(77)
     # a scream from another room: only in your head
@@ -193,5 +207,10 @@ def extras() -> None:
 
 
 if __name__ == "__main__":
-    stingers()
-    extras()
+    import sys
+    if "--screams" in sys.argv:
+        screams()
+    else:
+        stingers()
+        screams()
+        extras()

@@ -313,13 +313,17 @@ func _process(delta: float) -> void:
 		roll = sin((float(_step_n) + clampf(_step_t / step_len, 0.0, 1.0)) * PI) * 0.0045 * sp_k
 	cam.rotation = Vector3(pitch + _kick.y * 0.01, _kick.x * 0.01, roll)
 	if _punch > 0.001:
-		_punch = maxf(0.0, _punch - delta * (1.6 + 2.2 * _punch))
-		var pf: float = floorf(_t * 30.0) + _punch_seed
-		var amp := deg_to_rad(2.4) * _punch * _punch
-		cam.rotation += Vector3(sin(pf * 12.9898) * amp, sin(pf * 78.233) * amp, sin(pf * 37.719) * amp * 0.8)
-		cam.fov = 70.0 - 13.0 * minf(1.0, _punch * 1.4)
+		_punch = maxf(0.0, _punch - delta * (1.0 + 1.5 * _punch))
+		var pf: float = floorf(_t * 32.0) + _punch_seed
+		var amp := deg_to_rad(5.5) * _punch * _punch
+		cam.rotation += Vector3(sin(pf * 12.9898) * amp, sin(pf * 78.233) * amp, sin(pf * 37.719) * amp * 1.4)
+		cam.h_offset = sin(pf * 51.7) * 0.022 * _punch
+		cam.v_offset = sin(pf * 29.3) * 0.022 * _punch
+		cam.fov = 70.0 - 17.0 * minf(1.0, _punch * 1.5)
 	elif cam.fov != 70.0:
 		cam.fov = 70.0
+		cam.h_offset = 0.0
+		cam.v_offset = 0.0
 	# angular speed of the view (for flinch detection): the aim, not the shake
 	var dirv := aim_dir()
 	var a := _prev_dir.angle_to(dirv) / maxf(delta, 0.001)

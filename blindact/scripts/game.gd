@@ -164,7 +164,7 @@ func _ready() -> void:
 			_dev_bath()
 		"chase":
 			_act_flat_quick_chase()
-		"head", "face", "pop", "upside", "side", "lunge", "sub", "far", "blackout", "monster":
+		"head", "face", "pop", "upside", "side", "lunge", "rise", "stare", "sub", "far", "blackout", "monster":
 			_dev_scare(start)
 		_:
 			_act_home()
@@ -548,6 +548,8 @@ func _build_world() -> void:
 			scares.bot = true
 		elif a.begins_with("--hold="):
 			scares.dev_hold = float(a.substr(7))
+		elif a.begins_with("--who="):
+			scares.dev_who = a.substr(6)
 	_gore_light = SpotLight3D.new()
 	_gore_light.light_color = Color(1.0, 0.95, 0.88)
 	_gore_light.light_energy = 0.0
@@ -1784,8 +1786,8 @@ func _throw_head() -> void:
 	adrenaline = 1.0
 	body.stress = 1.0
 	player.heartbeat_kick(1.3)
-	flat.blood_decal(flat, "blood_splat1", rest + Vector3(-0.08, 0.05, 0.0), Vector3(0.95, 0.3, 0.95), Vector3.RIGHT, 1.2)
-	flat.blood_decal(flat, "blood_drip", rest + Vector3(-0.06, -0.22, 0.1), Vector3(0.55, 0.3, 0.6), Vector3.RIGHT, 0.0)
+	flat.blood_decal(flat, "blood_splat1", rest + Vector3(-0.08, 0.02, 0.0), Vector3(0.72, 0.3, 0.72), Vector3.RIGHT, 1.2)
+	flat.blood_decal(flat, "blood_splat2", rest + Vector3(-0.06, -0.3, 0.16), Vector3(0.5, 0.3, 0.5), Vector3.RIGHT, 2.6)
 	flat.blood_decal(flat, "blood_splat2", Vector3(rest.x + 0.12, 0.78, rest.z), Vector3(0.8, 0.25, 1.0), Vector3.UP, 0.4)
 	state.watched = true
 	state.visual("head", rest, 4.0, 1.3)

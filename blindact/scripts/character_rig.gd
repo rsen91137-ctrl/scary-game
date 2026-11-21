@@ -381,7 +381,7 @@ func _process(delta: float) -> void:
 			current = _target_name
 			pose_reached.emit(current)
 	_locomote(delta)
-	if alive or _dirty or moving or _walk > 0.0:
+	if alive or _dirty or moving or _walk > 0.0 or undead or jaw_open > 0.0 or lid_wide > 0.0:
 		_compose(delta)
 		_dirty = false
 
@@ -634,7 +634,7 @@ func _compose(delta: float) -> void:
 		_layer_look(qc, delta)
 	if jaw_open > 0.0 or lid_wide > 0.0:
 		if _idx.has("jaw"):
-			_rr(qr, "jaw", _jaw_axis, deg_to_rad(27.0) * jaw_open * (1.0 + 0.06 * sin(_clock * 31.0)))
+			_rr(qr, "jaw", _jaw_axis, deg_to_rad(34.0) * jaw_open * (1.0 + 0.06 * sin(_clock * 31.0)))
 		for lid: String in _lid:
 			_rr(qr, lid, _lid[lid][0], -deg_to_rad(16.0) * lid_wide * float(_lid[lid][1]))
 	_layer_hands(qr)
