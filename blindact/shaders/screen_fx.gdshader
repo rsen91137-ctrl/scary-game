@@ -28,6 +28,8 @@ uniform float aberration = 0.0012;
 uniform float fade = 0.0;
 uniform float brightness = 1.0;
 uniform float desaturate = 0.0;
+uniform float flash = 0.0;                 // a blown-out frame
+uniform float negative = 0.0;              // a frame turned inside out
 uniform float cold = 0.0;                  // drain warm hues, push shadows to blue-green
 uniform float time_s = 0.0;
 
@@ -114,25 +116,31 @@ void fragment() {
 	col = mix(col, soft, smoothstep(0.14, 0.55, r2) * 0.3);
 
 	// sunglasses: darker, flatter, a cold blue-green cast, darker corners
+	// blood: red standing far above green and blue. It is never drained,
+	// never cooled, and the lenses hardly dim it.
+	float redk = smoothstep(0.025, 0.14, col.r - max(col.g, col.b) * 1.3);
 	if (sunglasses > 0.001) {
 		float lum = dot(col, vec3(0.299, 0.587, 0.114));
 		vec3 lens = mix(col, vec3(lum), 0.3) * vec3(0.8, 0.9, 0.96);
-		lens *= 0.48;
-		lens = lens * lens * 1.6 + lens * 0.2;   // crush the shadows
+		lens *= 0.62;
+		lens = lens * lens * 1.1 + lens * 0.42;   // about a stop darker, shadows kept
+		lens = mix(lens, col * vec3(1.0, 0.55, 0.55), redk * 0.9);
 		float frame = smoothstep(0.42, 0.95, length(ca * vec2(0.82, 1.05)));
 		lens *= 1.0 - frame * 0.6;
 		col = mix(col, lens, sunglasses);
 	}
 
 	float lum0 = dot(col, vec3(0.299, 0.587, 0.114));
-	col = mix(col, vec3(lum0), desaturate);
+	col = mix(col, vec3(lum0), desaturate * (1.0 - redk));
 	if (cold > 0.001) {
-		// warm hues lose their colour, the shadows sink into blue-green
+		// warm hues lose their colour, the shadows sink into blue-green;
+		// all but blood
 		float warm = clamp((col.r - col.b) * 3.0, 0.0, 1.0);
-		vec3 c2 = mix(col, vec3(lum0), 0.25 + 0.45 * warm);
+		vec3 c2 = mix(col, vec3(lum0), 0.12 + 0.4 * warm);
 		c2 *= mix(vec3(0.8, 0.94, 1.08), vec3(0.95, 1.0, 1.04), smoothstep(0.0, 0.45, lum0));
-		col = mix(col, c2, cold);
+		col = mix(col, c2, cold * (1.0 - redk));
 	}
+	col = mix(col, vec3(col.r * 1.25 + 0.01, col.g * 0.7, col.b * 0.7), redk * 0.7);
 
 	// vignette, tightened by the heartbeat
 	float vr = length(ca * vec2(0.92, 1.0));
@@ -142,6 +150,8 @@ void fragment() {
 	col = mix(col, col * vec3(1.3, 0.5, 0.45), (1.0 - v) * pulse * 0.35);
 	col += vec3(0.5, 0.0, 0.0) * red_flash * (0.4 + 0.6 * (1.0 - v));
 
+	col = mix(col, vec3(1.0) - col, negative);
+	col += vec3(0.9, 0.86, 0.8) * flash;
 	col = pow(max(col, vec3(0.0)), vec3(1.0 / max(brightness, 0.05)));
 
 	float l = dot(col, vec3(0.299, 0.587, 0.114));

@@ -38,6 +38,12 @@ var _eye_cur := EYE
 var focus: Area3D              # interactable under the crosshair
 var cane_enabled := true
 var shake_scale := 1.0
+var avoid: Node3D               # someone you cannot walk through, but never get pinned by
+var _punch := 0.0              # jump-scare camera jolt, 1 -> 0
+var _punch_seed := 0.0
+var _safe_pos := Vector3.INF   # last place you stood on a floor
+var _safe_t := 0.0
+var _forced_until := -1.0
 var breath := 0.0
 var expect_gesture := false
 var eye_h := EYE                # head height (lower when seated)
@@ -142,7 +148,25 @@ func heartbeat_kick(strength: float) -> void:
 
 ## Turn the view to look at `p` over `secs`, easing in and out (the game
 ## turning your head for you; not counted as your own jerk of the head).
+## A jump scare hits the camera: the view snaps tight and shakes. It is not
+## the player's own movement, so it never counts as a flinch.
+func scare_punch(strength: float) -> void:
+	_punch = maxf(_punch, clampf(strength, 0.0, 1.3) * shake_scale)
+	_punch_seed = _rng.randf() * 100.0
+
+
+## Where the eyes point, without any shake: what the tells are judged on.
+func aim_dir() -> Vector3:
+	return (Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, pitch)) * Vector3.FORWARD
+
+
+## True while (and shortly after) the director is turning your head for you.
+func view_forced() -> bool:
+	return _t < _forced_until
+
+
 func look_toward(p: Vector3, secs := 0.6) -> void:
+	_forced_until = _t + secs + 2.5
 	var d := p - eye_pos()
 	_view_from = Vector2(yaw, pitch)
 	_view_to = Vector2(yaw + wrapf(atan2(-d.x, -d.z) - yaw, -PI, PI),
@@ -209,7 +233,26 @@ func _physics_process(delta: float) -> void:
 		velocity.y -= 9.8 * delta
 	else:
 		velocity.y = -0.1
+	# bodies give way: you are eased round him, never walled in by him
+	if avoid and avoid.visible:
+		var off := global_position - avoid.global_position
+		off.y = 0.0
+		var d := off.length()
+		if d < 0.55 and absf(global_position.y - avoid.global_position.y) < 1.2:
+			var out := off / d if d > 0.01 else Basis(Vector3.UP, yaw) * Vector3.BACK
+			var push := out * (0.55 - d) * 9.0
+			velocity.x += push.x
+			velocity.z += push.z
 	move_and_slide()
+	# safety net: remember solid ground; a fall out of the world puts you back
+	if is_on_floor():
+		_safe_t += delta
+		if _safe_t > 0.4:
+			_safe_t = 0.0
+			_safe_pos = global_position
+	elif _safe_pos != Vector3.INF and global_position.y < _safe_pos.y - 4.0:
+		global_position = _safe_pos + Vector3(0.0, 0.05, 0.0)
+		velocity = Vector3.ZERO
 	on_stairs = is_on_floor() and get_floor_normal().y < 0.97
 	step_len = 0.44 if on_stairs else 0.62
 	if input.length() > 0.1:
@@ -269,8 +312,16 @@ func _process(delta: float) -> void:
 		var sp_k := clampf(Vector2(velocity.x, velocity.z).length() / 1.4, 0.0, 1.0)
 		roll = sin((float(_step_n) + clampf(_step_t / step_len, 0.0, 1.0)) * PI) * 0.0045 * sp_k
 	cam.rotation = Vector3(pitch + _kick.y * 0.01, _kick.x * 0.01, roll)
-	# angular speed of the view (for flinch detection)
-	var dirv := look_dir()
+	if _punch > 0.001:
+		_punch = maxf(0.0, _punch - delta * (1.6 + 2.2 * _punch))
+		var pf: float = floorf(_t * 30.0) + _punch_seed
+		var amp := deg_to_rad(2.4) * _punch * _punch
+		cam.rotation += Vector3(sin(pf * 12.9898) * amp, sin(pf * 78.233) * amp, sin(pf * 37.719) * amp * 0.8)
+		cam.fov = 70.0 - 13.0 * minf(1.0, _punch * 1.4)
+	elif cam.fov != 70.0:
+		cam.fov = 70.0
+	# angular speed of the view (for flinch detection): the aim, not the shake
+	var dirv := aim_dir()
 	var a := _prev_dir.angle_to(dirv) / maxf(delta, 0.001)
 	if _view_t < 1.0:
 		a = 0.0
@@ -350,8 +401,15 @@ func unstick() -> void:
 			var p := global_position + Vector3(cos(a) * r, 0.0, sin(a) * r)
 			params.transform = Transform3D(Basis.IDENTITY, p + Vector3(0, 0.9, 0))
 			if space.intersect_shape(params, 1).is_empty():
+				# only onto a floor: never out through a wall into nothing
+				var rq := PhysicsRayQueryParameters3D.create(p + Vector3(0, 0.6, 0), p + Vector3(0, -0.8, 0), 1)
+				rq.exclude = [get_rid()]
+				if space.intersect_ray(rq).is_empty():
+					continue
 				global_position = p
 				return
+	if _safe_pos != Vector3.INF:
+		global_position = _safe_pos + Vector3(0.0, 0.05, 0.0)
 
 
 func _update_cane(delta: float, moving: bool) -> void:

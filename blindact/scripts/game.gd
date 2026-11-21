@@ -69,6 +69,9 @@ var head: CharacterRig          # hers, for the piano
 var _head_held := false
 var _susp_stage := 0
 var _man_watching := false
+var scares: Scares
+var entering := false           # walking in past her, on the way to the piano
+var _gore_light: SpotLight3D
 signal world_ready
 var _fp_item: Node3D            # what he holds up in front of him (receiver, glasses)
 var _cord: MeshInstance3D       # the phone cord while the receiver is lifted
@@ -94,7 +97,7 @@ func _ready() -> void:
 	player = Player.new()
 	player.name = "Player"
 	add_child(player)
-	player.collision_mask = 1 | 4
+	player.collision_mask = 1      # people are soft: see Player.avoid
 	player.interacted.connect(_on_interact)
 	player.tapped.connect(_on_tap)
 	player.stepped.connect(_on_step)
@@ -122,7 +125,7 @@ func _ready() -> void:
 	woman.name = "Woman"
 	add_child(woman)
 	woman.visible = false
-
+	player.avoid = man
 	_setup_audio()
 	_setup_ui()
 	# lightning through the living room window
@@ -161,7 +164,7 @@ func _ready() -> void:
 			_dev_bath()
 		"chase":
 			_act_flat_quick_chase()
-		"head", "face":
+		"head", "face", "pop", "upside", "side", "lunge", "sub", "far", "blackout", "monster":
 			_dev_scare(start)
 		_:
 			_act_home()
@@ -518,9 +521,40 @@ func _build_world() -> void:
 	man.setup("man")
 	man.visible = false
 	await get_tree().process_frame
-	woman.setup("woman")
+	woman.setup("woman", "womanc")
 	woman.visible = false
 	woman.alive = false
+	# the wire is still in her neck
+	var ring := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.046
+	tm.outer_radius = 0.051
+	tm.rings = 40
+	tm.ring_segments = 8
+	ring.mesh = tm
+	var rm := StandardMaterial3D.new()
+	rm.albedo_color = Color(0.3, 0.03, 0.03)
+	rm.metallic = 0.8
+	rm.roughness = 0.25
+	ring.material_override = rm
+	ring.position = Vector3(0.0, 0.035, 0.0)
+	woman.attach("neck02", ring)
+	scares = Scares.new()
+	scares.name = "Scares"
+	add_child(scares)
+	scares.setup(self)
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--autoplay"):
+			scares.bot = true
+		elif a.begins_with("--hold="):
+			scares.dev_hold = float(a.substr(7))
+	_gore_light = SpotLight3D.new()
+	_gore_light.light_color = Color(1.0, 0.95, 0.88)
+	_gore_light.light_energy = 0.0
+	_gore_light.spot_range = 4.5
+	_gore_light.spot_angle = 42.0
+	_gore_light.shadow_enabled = true
+	add_child(_gore_light)
 	man.stepped.connect(_on_man_step)
 	_make_props()
 	await _bake_nav()
@@ -1031,23 +1065,25 @@ func _act_flat() -> void:
 	amb.play()
 	clock_player.global_position = flat.spots.clock
 	recorder_spot = ["cabinet", "towels", "coat", "drawer"][_rng.randi() % 4]
-	# her, in the bath
 	woman.visible = true
 	woman.set_pose("lie", 0.0)
-	woman.global_position = flat.spots.tub + Vector3(0.45, 0.0, 0.0)
-	woman.rotation = Vector3(-deg_to_rad(70.0), deg_to_rad(90.0), 0.0)
-	# him, in the armchair behind you
 	man.visible = true
-	man.set_pose("sit", 0.0)
-	_man_sit_now()
 	man.look_node = player.head
-	_sit_at_piano()
-	ui.fade_to(0.0, 1.5)
-	await wait(2.0)
+	ui.show_meter(true)
+	if OS.get_cmdline_user_args().has("--act=piano"):
+		# (dev) straight to the bench: she is already in the bath
+		_corpse_to_tub()
+		man.set_pose("sit", 0.0)
+		_man_sit_now()
+		_sit_at_piano()
+		await scares.prewarm()
+		ui.fade_to(0.0, 1.5)
+		await wait(2.0)
+	else:
+		await _enter_flat(g)
 	if not _alive(g):
 		return
 	await man_say("MAN_3", 2.6)
-	ui.show_meter(true)
 	hint_once("HINT_PIANO", 7.0)
 	get_tree().create_timer(7.5).timeout.connect(func() -> void:
 		if _alive(g):
@@ -1055,6 +1091,7 @@ func _act_flat() -> void:
 	_tr("piece 1")
 	piano_ui.start(PianoGame.gymnopedie())
 	state.playing_piano = true
+	scares.run(g)
 	_piano_tests(g, piano_ui.length)
 	await piano_ui.finished
 	if not _alive(g):
@@ -1098,6 +1135,93 @@ func _act_flat() -> void:
 	ui.objective("OBJ_EXIT")
 	ui.hint("HINT_EXIT", 7.0)
 	await _leaving(g)
+
+
+## The door shuts behind you and the hall bulb is on. She is lying on the
+## floor in front of you, the wire still in her neck, and he is standing over
+## her watching you walk past. Then her head turns.
+func _enter_flat(g: int) -> void:
+	entering = true
+	_corpse_in_hall()
+	man.set_pose("stand", 0.0)
+	man.global_position = Vector3(0.28, 0.0, 4.75)
+	man.look_at(Vector3(0.0, 0.0, 0.7), Vector3.UP, true)
+	player.global_position = flat.spots.front_inside + Vector3(0.0, 0.03, 0.1)
+	player.velocity = Vector3.ZERO
+	player.set_mode("walk")
+	player.yaw = PI
+	player.pitch = -0.12
+	player.snap_eye()
+	await scares.prewarm()
+	ui.fade_to(0.0, 1.4)
+	scares._play("dread_swell", -3.0)
+	await wait(1.8)
+	if not _alive(g):
+		return
+	state.visual("corpse", woman.bone_pos("head"), 6.0, 0.6)
+	think("THINK_CORPSE", 4.5)
+	ui.objective("OBJ_PIANO")
+	ui.hint("HINT_ENTER", 9.0)
+	var snapped := false
+	var t := 0.0
+	while _alive(g) and player.global_position.distance_to(flat.spots.piano_seat) > 1.25:
+		await wait(0.1)
+		t += 0.1
+		if not snapped and (player.global_position.z > 1.4 or player.global_position.x < -0.8 or t > 10.0):
+			snapped = true
+			scares.corpse_snap(1.0)
+			get_tree().create_timer(4.5).timeout.connect(func() -> void:
+				if _alive(g):
+					think("THINK_NOT_REAL", 4.0)
+					ui.hint("HINT_UNREAL", 9.0))
+	if not _alive(g):
+		return
+	entering = false
+	ui.objective("")
+	_sit_at_piano()
+	_drag_to_bath(g)
+
+
+func _corpse_in_hall() -> void:
+	# on her back, feet towards the bathroom he was dragging her to
+	woman.rotation = Vector3(-PI * 0.5, 0.0, 0.0)
+	woman.global_position = Vector3(0.1, 0.13, 4.1)
+	woman.undead = false
+	woman.jaw_open = 0.25
+	woman.lid_wide = 0.6
+	_gore_light.global_position = Vector3(0.0, 2.3, 2.9)
+	_gore_light.rotation = Vector3(-PI * 0.5, 0.0, 0.0)
+	_gore_light.light_energy = 3.2
+	flat.blood_decal(flat, "blood_pool", Vector3(0.05, 0.0, 2.65), Vector3(1.05, 0.3, 0.95), Vector3.UP, 0.7)
+	flat.blood_decal(flat, "blood_splat2", Vector3(-0.2, 0.0, 3.3), Vector3(0.9, 0.3, 0.9), Vector3.UP, 2.1)
+	flat.blood_decal(flat, "blood_hand", Vector3(-0.63, 0.75, 2.5), Vector3(0.4, 0.3, 0.5), Vector3.RIGHT, 0.0)
+	flat.blood_decal(flat, "blood_drip", Vector3(0.63, 1.1, 3.0), Vector3(0.7, 0.3, 0.9), Vector3.LEFT, 0.0)
+
+
+func _corpse_to_tub() -> void:
+	woman.global_position = flat.spots.tub + Vector3(0.45, 0.0, 0.0)
+	woman.rotation = Vector3(-deg_to_rad(70.0), deg_to_rad(90.0), 0.0)
+	scares.corpse_rest()
+	_gore_light.global_position = flat.spots.tub + Vector3(-0.2, 1.9, -0.5)
+	_gore_light.look_at(flat.spots.tub + Vector3(0.3, 0.4, 0.0), Vector3.UP)
+	_gore_light.light_energy = 2.6
+
+
+## While you play, behind you, he drags her the rest of the way to the bath.
+func _drag_to_bath(g: int) -> void:
+	await wait(2.0)
+	if not _alive(g):
+		return
+	_sfx3d("res://assets/audio/drag.ogg", Vector3(0.0, 0.2, 3.4), 3.0, 5.0)
+	await wait(5.0)
+	if not _alive(g):
+		return
+	_corpse_to_tub()
+	flat.blood_decal(flat, "blood_drag", Vector3(0.0, 0.0, 3.35), Vector3(1.7, 0.3, 0.6), Vector3.UP, PI * 0.5)
+	flat.blood_decal(flat, "blood_drag", Vector3(0.85, 0.0, 4.15), Vector3(1.4, 0.3, 0.55), Vector3.UP, 0.25)
+	flat.blood_decal(flat, "blood_hand", Vector3(0.68, 0.9, 3.25), Vector3(0.4, 0.3, 0.5), Vector3.RIGHT, 0.0)
+	_sfx3d("res://assets/audio/wet_thud.ogg", flat.spots.tub, 0.0, 4.0)
+	man_sit_chair()
 
 
 func _sit_at_piano() -> void:
@@ -1264,12 +1388,14 @@ func _man_head() -> Vector3:
 func _piano_tests(g: int, length: float) -> void:
 	var pool := ["knife", "glass", "face", "money"]
 	pool.shuffle()
-	var times := [length * 0.28, length * 0.62]
+	var times := [length * 0.38, length * 0.72]
 	for i in 2:
 		await wait(times[i] - (times[i - 1] if i > 0 else 0.0))
 		if not _alive(g) or not piano_ui.active:
 			return
+		scares.busy += 1
 		await _test(pool[i], g)
+		scares.busy = maxi(0, scares.busy - 1)
 
 
 func _test(kind: String, g: int) -> void:
@@ -1321,24 +1447,23 @@ func _test(kind: String, g: int) -> void:
 			man.quiet = false
 			if not _alive(g):
 				return
-			await wait(0.8)
-			man.set_pose("peer", 0.16)
-			_face_light(5.5)
-			await wait(0.12)
+			await wait(_rng.randf_range(0.3, 1.6))
+			# all at once: one frame he is not there, the next he fills your sight
+			man.set_pose("peer", 0.0)
+			_face_light(4.0)
+			await get_tree().process_frame
+			await get_tree().process_frame
 			if OS.get_cmdline_user_args().has("--probe"):
 				await wait(0.3)
 				var hp := man.bone_pos("head")
 				var to := (hp - player.eye_pos())
 				print("PROBE head=", hp, " dist=", to.length(), " angle=", rad_to_deg(player.look_dir().angle_to(to.normalized())))
-			_sfx("res://assets/audio/stinger.ogg", -2.0)
+			scares.hit(1.0)
 			_sfx3d("res://assets/audio/whoosh.ogg", man.bone_pos("head"), -6.0, 2.0)
-			red_flash = 0.6
-			adrenaline = 0.8
-			player.heartbeat_kick(0.9)
 			state.watched = true
-			state.visual("face", man.bone_pos("head"), 5.0, 1.2)
+			state.visual("face", man.bone_pos("head"), 4.0, 1.2)
 			think("THINK_FACE", 3.0)
-			await wait(5.0)
+			await wait(3.6)
 			man.set_pose("stand", 0.6)
 			await wait(0.6)
 			_man_back_to_chair()
@@ -1408,7 +1533,10 @@ func _bathroom_sequence(g: int) -> void:
 		await wait(0.2)
 	if not _alive(g):
 		return
-	state.visual("tub", woman.bone_pos("head"), 3.0, 0.6)
+	if _rng.randf() < 0.65:
+		scares.corpse_snap(0.85)
+	else:
+		state.visual("tub", woman.bone_pos("head"), 3.0, 0.6)
 	await wait(1.5)
 	_tr("in the bathroom")
 	ui.hint_hold("HINT_WASH")
@@ -1436,11 +1564,14 @@ func _bathroom_sequence(g: int) -> void:
 	player.look_toward(Vector3(3.0, 1.55, 4.0), 0.8)
 	_sfx3d("res://assets/audio/drip.ogg", Vector3(2.75, 0.9, 4.0), -4.0)
 	await wait(2.0)
-	if _rng.randf() < 0.65:
+	var charged := _rng.randf() < 0.55
+	if charged:
 		await _fake_charge(g)
 	if not _alive(g):
 		return
 	player.set_mode("walk", player.yaw)
+	if not charged or _rng.randf() < 0.4:
+		scares.turn_pop(10.0)
 	# a last chance to search on the way out
 	var t2 := 0.0
 	while _alive(g) and t2 < 6.0:
@@ -1524,6 +1655,7 @@ func _second_piece(g: int) -> void:
 	if not _alive(g) or not piano_ui.active:
 		return
 	# a string snaps
+	scares.busy += 1
 	_sfx3d("res://assets/audio/wire_twang.ogg", flat.spots.piano_seat + Vector3(-0.8, 1.0, 0), 0.0)
 	await wait(0.6)
 	await man_walk(flat.spots.piano_seat + Vector3(0.6, 0.0, 0.7), player.global_position)
@@ -1546,10 +1678,13 @@ func _second_piece(g: int) -> void:
 		state.add_suspicion(8.0, "TELL_STOPPED")
 	man.set_pose("stand", 0.4)
 	man_walk(Vector3(0.0, 0.0, 2.6))
+	scares.busy = maxi(0, scares.busy - 1)
 	await wait(len * 0.15)
 	if not _alive(g) or not piano_ui.active:
 		return
+	scares.busy += 1
 	await _head_scene(g)
+	scares.busy = maxi(0, scares.busy - 1)
 	if not _alive(g):
 		return
 	var rec_before := recording
@@ -1568,7 +1703,9 @@ func _head_scene(g: int) -> void:
 		head = CharacterRig.new()
 		head.name = "Head"
 		add_child(head)
-		head.setup("woman_head", "woman", false)
+		head.setup("woman_head", "womang", false)
+		head.jaw_open = 1.0
+		head.lid_wide = 1.0
 	head.visible = true
 	_head_held = true
 	woman.hide_head()
@@ -1609,7 +1746,7 @@ func _face_light(secs: float) -> void:
 	add_child(l)
 	l.global_position = player.eye_pos() + player.look_dir() * 0.05 + Vector3(0, 0.08, 0)
 	var tw := create_tween()
-	tw.tween_property(l, "light_energy", 0.55, 0.12)
+	tw.tween_property(l, "light_energy", 1.3, 0.02)
 	tw.tween_interval(maxf(0.1, secs - 1.6))
 	tw.tween_property(l, "light_energy", 0.0, 1.5)
 	tw.tween_callback(l.queue_free)
@@ -1638,17 +1775,18 @@ func _throw_head() -> void:
 	head.global_position = rest
 	head.rotation = rot1
 	_sfx3d("res://assets/audio/stab.ogg", rest, 4.0, 3.0)
-	_sfx("res://assets/audio/stinger.ogg", 0.0)
+	_sfx3d("res://assets/audio/wet_thud.ogg", rest, 3.0, 3.0)
+	scares.hit(1.15)
+	_face_light(5.0)
 	for n: int in [36, 37, 39, 41, 42, 44, 45, 48, 49]:
 		piano.play(n, 1.0)
 	red_flash = 1.0
 	adrenaline = 1.0
 	body.stress = 1.0
 	player.heartbeat_kick(1.3)
-	var blood := Color(0.52, 0.02, 0.03)
-	flat._decal(flat, "stain2", rest + Vector3(-0.08, 0.0, 0.03), Vector3(0.6, 0.26, 0.55), Vector3.RIGHT, blood, 1.2)
-	flat._decal(flat, "stain", rest + Vector3(-0.02, 0.06, -0.12), Vector3(0.35, 0.3, 0.3), Vector3.RIGHT, blood, -0.5)
-	flat._decal(flat, "stain", Vector3(rest.x - 0.02, 0.78, rest.z - 0.06), Vector3(0.5, 0.2, 0.32), Vector3.UP, blood, 0.4)
+	flat.blood_decal(flat, "blood_splat1", rest + Vector3(-0.08, 0.05, 0.0), Vector3(0.95, 0.3, 0.95), Vector3.RIGHT, 1.2)
+	flat.blood_decal(flat, "blood_drip", rest + Vector3(-0.06, -0.22, 0.1), Vector3(0.55, 0.3, 0.6), Vector3.RIGHT, 0.0)
+	flat.blood_decal(flat, "blood_splat2", Vector3(rest.x + 0.12, 0.78, rest.z), Vector3(0.8, 0.25, 1.0), Vector3.UP, 0.4)
 	state.watched = true
 	state.visual("head", rest, 4.0, 1.3)
 	state.scare_window(5.0)
@@ -1761,9 +1899,16 @@ func _on_exposed(reason: String) -> void:
 	piano_ui.stop()
 	state.playing_piano = false
 	state.end_tests()
+	scares.stop()
+	entering = false
 	ui.fake_prompt("", 0.01)
 	man.visible = true
 	man.stop()
+	# what your fear makes of him now
+	man.retexture("manm")
+	man.jaw_open = 0.85
+	man.lid_wide = 1.0
+	scares.hit(1.0)
 	man.set_pose("knife_low", 0.3)
 	man.look_while_walking = true
 	knife.visible = true
@@ -1871,12 +2016,17 @@ func _caught(g: int, reason: String) -> void:
 	player.set_mode("locked")
 	man.visible = true
 	man.stop()
-	man.global_position = player.global_position + (man.global_position - player.global_position).normalized() * 0.7
-	man.look_at(Vector3(player.global_position.x, 0.0, player.global_position.z), Vector3.UP, true)
-	man.set_pose("knife_high", 0.2)
-	player.look_toward(man.bone_pos("head"), 0.25)
-	_sfx("res://assets/audio/stinger.ogg", 0.0)
-	await wait(0.5)
+	var away := (man.global_position - player.global_position) * Vector3(1, 0, 1)
+	if away.length() < 0.05:
+		away = Vector3.FORWARD
+	man.global_position = Vector3(player.global_position.x, player.global_position.y, player.global_position.z) + away.normalized() * 0.52
+	man.look_at(Vector3(player.global_position.x, man.global_position.y, player.global_position.z), Vector3.UP, true)
+	man.set_pose("knife_high", 0.0)
+	man.jaw_open = 1.0
+	player.look_toward(man.bone_pos("head") + Vector3(0, 0.08, 0), 0.12)
+	_face_light(2.0)
+	scares.hit(1.3)
+	await wait(0.7)
 	_sfx("res://assets/audio/stab.ogg", 2.0)
 	red_flash = 1.0
 	ui.fade_now(1.0)
@@ -2005,10 +2155,28 @@ func _dev_scare(kind: String) -> void:
 	piano_ui.start(PianoGame.prelude())
 	state.playing_piano = true
 	await wait(0.5)
-	if kind == "face":
-		await _test("face", g)
-	else:
-		await _head_scene(g)
+	_corpse_to_tub()
+	await scares.prewarm()
+	scares._running = true
+	match kind:
+		"face":
+			await _test("face", g)
+		"head":
+			await _head_scene(g)
+		"sub":
+			await scares.subliminal()
+		"blackout":
+			await scares.blackout()
+		"far":
+			_stand_up()
+			await wait(1.5)
+			player.yaw = -PI * 0.5
+			await wait(0.3)
+			print("far shown: ", await scares.far())
+		"monster":
+			state.expose("TELL_SCREAM")
+		_:
+			await scares.pop(kind, false)
 
 
 func _dev_bath() -> void:
@@ -2032,6 +2200,11 @@ func _process(delta: float) -> void:
 	ui.prompt(tr(String(f.get_meta("interact"))) if f and act != "end" else "")
 	if act == "flat" or act == "stairs":
 		state.watched = man.visible and _he_sees_you()
+	state.listening = man.visible and (act == "flat" or act == "stairs")
+	state.his_head = man.bone_pos("head") if man.visible and _world_ready else Vector3.INF
+	if act == "chase" and mic.active:
+		_last_noise = _t
+	ui.mic(mic.level_db, mic.threshold_db(), Settings.mic_this_run and mic.has_input())
 	# the clock
 	if act == "flat":
 		_clock_t += delta
@@ -2067,7 +2240,7 @@ func _process(delta: float) -> void:
 		if k != _moon_k:
 			_moon_k = k
 			stairs.place_moon(k)
-	post_mat.set_shader_parameter("sunglasses", sunglasses)
+	post_mat.set_shader_parameter("sunglasses", sunglasses * (1.0 - 0.8 * (scares.open if scares else 0.0)))
 	post_mat.set_shader_parameter("tremble", adrenaline * 0.6)
 	post_mat.set_shader_parameter("pulse", body.pulse * (0.5 + adrenaline))
 	post_mat.set_shader_parameter("red_flash", red_flash + adrenaline * 0.15)

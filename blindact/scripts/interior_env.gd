@@ -44,7 +44,7 @@ func setup(parent: Node) -> void:
 	env.volumetric_fog_length = 24.0
 	env.volumetric_fog_ambient_inject = 0.0
 	env.adjustment_enabled = true
-	env.adjustment_saturation = 0.72
+	env.adjustment_saturation = 1.0
 	env.adjustment_contrast = 1.08
 	world_env = WorldEnvironment.new()
 	world_env.environment = env

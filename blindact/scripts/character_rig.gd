@@ -111,6 +111,9 @@ var moving := false
 var look_node: Node3D         # whose head he watches (null: his gaze drifts)
 var look_target := Vector3.INF
 var look_while_walking := false
+var undead := false           # not alive, yet its head follows you
+var jaw_open := 0.0           # 0..1, a scream held open
+var lid_wide := 0.0           # 0..1, the lids dragged back
 var _inst: Node3D
 var _inst_y0 := 0.0
 var _base := {}               # bone -> Quaternion, the blended pose
@@ -208,7 +211,18 @@ func _collect_meshes(n: Node) -> void:
 
 func _tex(name: String) -> Texture2D:
 	var p := "res://assets/textures/chars/%s.png" % name
+	if ResourceLoader.exists(p):
+		return load(p)
+	# a variant (womang, manm...) only overrides some parts
+	var base := "woman" if tex_who.begins_with("woman") else "man"
+	p = "res://assets/textures/chars/%s.png" % name.replace(tex_who + "_", base + "_")
 	return load(p) if ResourceLoader.exists(p) else null
+
+
+## Swap whose textures it wears (the corpse, the thing panic makes of her...).
+func retexture(p_tex: String) -> void:
+	tex_who = p_tex
+	_apply_materials()
 
 
 ## A PBR material from assets/textures/chars/<who>_<part>_{albedo,normal,rough}.
@@ -229,7 +243,7 @@ func _pbr(part: String, normal_scale := 1.0) -> StandardMaterial3D:
 
 
 func _apply_materials() -> void:
-	var dead := tex_who == "woman"
+	var dead := tex_who.begins_with("woman")
 	var mats := {}
 	var skin := _pbr("skin", 0.8)
 	skin.subsurf_scatter_enabled = true
@@ -280,7 +294,7 @@ func _apply_materials() -> void:
 	mats["teeth"] = teeth
 	# a severed neck: wet, dark meat
 	var stump := StandardMaterial3D.new()
-	stump.albedo_color = Color(0.2, 0.012, 0.016)
+	stump.albedo_color = Color(0.46, 0.014, 0.02)
 	stump.roughness = 0.12
 	stump.metallic_specular = 0.7
 	mats["stump"] = stump
@@ -616,6 +630,13 @@ func _compose(delta: float) -> void:
 		_layer_idle(qc)
 		_layer_look(qc, delta)
 		_layer_face(qr, delta)
+	elif undead:
+		_layer_look(qc, delta)
+	if jaw_open > 0.0 or lid_wide > 0.0:
+		if _idx.has("jaw"):
+			_rr(qr, "jaw", _jaw_axis, deg_to_rad(27.0) * jaw_open * (1.0 + 0.06 * sin(_clock * 31.0)))
+		for lid: String in _lid:
+			_rr(qr, lid, _lid[lid][0], -deg_to_rad(16.0) * lid_wide * float(_lid[lid][1]))
 	_layer_hands(qr)
 	# parents as they stood last frame, for the character-space rotations
 	var pcur := {}

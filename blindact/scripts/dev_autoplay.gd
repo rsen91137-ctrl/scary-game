@@ -66,7 +66,10 @@ func _process(delta: float) -> void:
 				p.gesture.emit("nod")
 			# walking parts: walk the hall, wash, come back, leave
 			# (never move while he charges: that is exactly the bait)
-			if p.mode == "walk" and not piano.active and float(game.get("adrenaline")) < 0.05:
+			if bool(game.get("entering")):
+				if _act_t > 6.0 and _once("to_piano"):
+					p.global_position = game.flat.spots.piano_seat + Vector3(0.7, 0.05, 0.0)
+			elif p.mode == "walk" and not piano.active and float(game.get("adrenaline")) < 0.05:
 				var bath_done: bool = _did.has("sink")
 				if not bath_done:
 					if _once("to_bath"):

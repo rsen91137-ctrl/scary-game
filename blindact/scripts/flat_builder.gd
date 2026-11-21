@@ -174,7 +174,10 @@ func _materials() -> void:
 	window_mat = ShaderMaterial.new()
 	window_mat.shader = load("res://shaders/night_window.gdshader")
 	var blood := StandardMaterial3D.new()
-	blood.albedo_color = Color(0.12, 0.006, 0.006)
+	blood.albedo_color = Color(0.5, 0.012, 0.018)
+	blood.emission_enabled = true
+	blood.emission = Color(0.22, 0.0, 0.0)
+	blood.emission_energy_multiplier = 0.25
 	blood.roughness = 0.06
 	blood.metallic_specular = 0.8
 	_m.blood = blood
@@ -682,6 +685,14 @@ func _hallway() -> void:
 
 
 ## A decal pressed onto a surface whose outward normal is `normal`.
+## Blood: wet, red, and never quite lost in the dark.
+func blood_decal(parent: Node3D, tex: String, pos: Vector3, size: Vector3, normal: Vector3, spin := 0.0) -> Decal:
+	var d := _decal(parent, tex, pos, size, normal, Color.WHITE, spin)
+	d.texture_emission = d.texture_albedo
+	d.emission_energy = 0.12
+	return d
+
+
 func _decal(parent: Node3D, tex: String, pos: Vector3, size: Vector3, normal: Vector3, tint := Color.WHITE, spin := 0.0) -> Decal:
 	var d := Decal.new()
 	var p := "res://assets/textures/decals/%s.png" % tex
@@ -1083,11 +1094,13 @@ func _dress() -> void:
 	# bathroom a hand on the tiles over the tub and a smear on the floor;
 	# black mould spreading from the corner by the living-room window
 	var bath: Node3D = get_node("Bath")
-	var blood := Color(0.32, 0.02, 0.025)
-	_decal(hall, "handprint", Vector3(0.57, 1.15, 3.55), Vector3(0.16, 0.12, 0.2), Vector3.LEFT, blood, 0.3)
-	_decal(hall, "handprint", Vector3(0.57, 0.62, 3.42), Vector3(0.2, 0.12, 0.3), Vector3.LEFT, blood * 0.8, 1.1)
-	_decal(bath, "handprint", Vector3(2.35, 1.0, 5.72), Vector3(0.16, 0.12, 0.2), Vector3.FORWARD, blood, -0.4)
-	_decal(bath, "stain2", Vector3(1.55, 0.0, 4.85), Vector3(0.7, 0.2, 0.45), Vector3.UP, blood, 0.6)
+	blood_decal(hall, "blood_hand", Vector3(0.57, 1.15, 3.55), Vector3(0.3, 0.2, 0.38), Vector3.LEFT, 0.3)
+	blood_decal(hall, "blood_hand", Vector3(0.57, 0.62, 3.42), Vector3(0.3, 0.2, 0.4), Vector3.LEFT, 1.1)
+	blood_decal(bath, "blood_hand", Vector3(2.35, 1.0, 5.72), Vector3(0.3, 0.2, 0.38), Vector3.FORWARD, -0.4)
+	blood_decal(bath, "blood_splat1", Vector3(1.55, 0.0, 4.85), Vector3(1.2, 0.25, 1.1), Vector3.UP, 0.6)
+	blood_decal(bath, "blood_drip", Vector3(1.9, 1.1, 5.74), Vector3(1.1, 0.25, 1.2), Vector3.FORWARD, 0.0)
+	blood_decal(bath, "blood_pool", Vector3(1.35, 0.0, 5.2), Vector3(0.9, 0.25, 0.7), Vector3.UP, 1.4)
+	blood_decal(bath, "blood_splat2", Vector3(2.9, 1.2, 4.6), Vector3(0.9, 0.25, 0.9), Vector3.LEFT, 0.8)
 	_decal(liv, "mold", Vector3(-4.85, 2.45, 4.5), Vector3(0.9, 0.25, 0.7), Vector3.FORWARD, Color(0.05, 0.07, 0.05))
 	_decal(liv, "mold", Vector3(-5.1, 2.5, 4.2), Vector3(0.7, 0.25, 0.8), Vector3.RIGHT, Color(0.05, 0.07, 0.05), 1.2)
 	# drag marks down the hall, from the bathroom door

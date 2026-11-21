@@ -148,6 +148,10 @@ func hint_clear() -> void:
 		_hint_t = 0.8
 
 
+func mic(db: float, thr: float, on: bool) -> void:
+	_meter.set_mic(db, thr, on)
+
+
 func show_meter(on: bool) -> void:
 	_meter.visible = on
 

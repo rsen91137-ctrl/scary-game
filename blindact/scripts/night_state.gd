@@ -28,6 +28,20 @@ var playing_piano := false
 var piano_misses := 0            # misses since the last test began
 var scare_until := -1.0          # after a scare your hands give you away
 var _err_in_window := 0
+var listening := false           # he is near enough to hear you (set by the director)
+var his_head := Vector3.INF      # where his eyes are (INF: he is not there)
+var comp_until := -1.0           # a scare just hit: your composure is being judged
+var mic_gate_until := -1.0       # the game's own stinger in your microphone is not you
+var _comp_w := 1.0
+var _comp_t0 := 0.0
+var _comp_flinched := false
+var _comp_froze := false
+var _comp_speed0 := 0.0
+var _voice_t := 0.0
+var _voice_hit := 0.0
+var _loud_t := 0.0
+var _eye_t := 0.0
+var _phantoms: Array = []        # sounds only you can hear
 
 var _tests: Array = []           # dicts
 var _t := 0.0
@@ -113,16 +127,105 @@ func add_frame(amount: float, reason: String) -> void:
 
 
 func _on_mic(_db: float) -> void:
-	if exposed_flag or not Settings.mic_this_run:
+	pass    # the voice is judged every frame now (_judge_voice), not only in tests
+
+
+## A scare just hit. For `secs` he reads you: a sound, a jerk of the head,
+## feet that stop dead, hands that lose the beat.
+func composure(secs: float, weight := 1.0) -> void:
+	comp_until = maxf(comp_until, _t + secs)
+	_comp_w = weight
+	_comp_t0 = _t
+	_comp_flinched = false
+	_comp_froze = false
+	_comp_speed0 = Vector2(player.velocity.x, player.velocity.z).length()
+	mic_gate_until = _t + 0.3
+	if playing_piano:
+		scare_window(secs)
+
+
+## A sound that is only in your head: he heard nothing, so turning to it tells.
+func phantom(pos: Vector3, window := 2.8) -> void:
+	var to := (pos - player.eye_pos()).normalized()
+	_phantoms.append({"pos": pos, "t0": _t, "window": window, "ang0": player.aim_dir().angle_to(to)})
+
+
+## He hears you all night, not only when he is testing you. A sound costs; a
+## sound right after a scare costs dear; a scream ends it.
+func _judge_voice(delta: float) -> void:
+	if mic == null or exposed_flag or not Settings.mic_this_run or not listening or _t < mic_gate_until:
+		_voice_t = 0.0
+		_loud_t = 0.0
 		return
-	for t: Dictionary in _tests:
-		if t.kind == "visual" and _t - float(t.t0) < float(t.window):
-			# a mute who makes a sound has seen something
+	var thr := mic.threshold_db()
+	var lvl := mic.level_db
+	var scream := maxf(Settings.mic_voice_db + 5.0, thr + 9.0)
+	if lvl > scream:
+		_loud_t += delta
+		if _loud_t > 0.22:
+			_loud_t = 0.0
 			if Settings.difficulty == 0:
-				add_suspicion(55.0, "TELL_VOICE")
+				add_suspicion(60.0, "TELL_SCREAM")
 			else:
-				expose("TELL_VOICE")
+				expose("TELL_SCREAM")
 			return
+	else:
+		_loud_t = maxf(0.0, _loud_t - delta * 2.0)
+	if lvl > thr:
+		_voice_t += delta
+		if _voice_t > float(Difficulty.get_value("mic_min_len")) and _t > _voice_hit:
+			_voice_hit = _t + 1.0
+			if _t < comp_until:
+				add_suspicion(34.0 * _comp_w, "TELL_GASP")
+			else:
+				add_suspicion(14.0, "TELL_VOICE")
+	else:
+		_voice_t = 0.0
+
+
+func _judge_composure() -> void:
+	if _t > comp_until or exposed_flag or player.eyes_closed or not watched:
+		return
+	var age := _t - _comp_t0
+	# a jerk of the view, a human reaction time after it appeared
+	if not _comp_flinched and age > 0.12 and age < 1.6 and player.ang_speed > 2.6:
+		_comp_flinched = true
+		add_suspicion(15.0 * _comp_w, "TELL_FLINCH")
+	# walking, then rooted to the spot
+	if not _comp_froze and age > 0.25 and age < 1.3 and _comp_speed0 > 0.8 and Vector2(player.velocity.x, player.velocity.z).length() < 0.15:
+		_comp_froze = true
+		add_suspicion(9.0 * _comp_w, "TELL_FROZE")
+
+
+## A blind man does not hold another man's eyes.
+func _judge_eyes(delta: float) -> void:
+	if not watched or his_head == Vector3.INF or exposed_flag or player.eyes_closed or player.view_forced() \
+			or not (player.mode == "walk" or player.mode == "seated"):
+		_eye_t = maxf(0.0, _eye_t - delta)
+		return
+	var to := his_head - player.eye_pos()
+	if to.length() < 4.0 and player.aim_dir().angle_to(to.normalized()) < deg_to_rad(6.5):
+		_eye_t += delta
+		if _eye_t > 1.4:
+			_eye_t = 0.9
+			add_suspicion(7.0, "TELL_EYES")
+	else:
+		_eye_t = maxf(0.0, _eye_t - delta * 2.0)
+
+
+func _judge_phantoms() -> void:
+	var i := 0
+	while i < _phantoms.size():
+		var ph: Dictionary = _phantoms[i]
+		var to: Vector3 = (Vector3(ph.pos) - player.eye_pos()).normalized()
+		var ang := player.aim_dir().angle_to(to)
+		if watched and ang < float(ph.ang0) - deg_to_rad(28.0):
+			add_suspicion(20.0, "TELL_PHANTOM")
+			_phantoms.remove_at(i)
+		elif _t - float(ph.t0) > float(ph.window):
+			_phantoms.remove_at(i)
+		else:
+			i += 1
 
 
 func _process(delta: float) -> void:
@@ -136,6 +239,10 @@ func _process(delta: float) -> void:
 				mic_history = mic_history.slice(mic_history.size() - 160)
 	if not exposed_flag and suspicion > 0.0:
 		suspicion = maxf(0.0, suspicion - delta * float(Difficulty.get_value("suspicion_decay")) * (0.4 if watched else 1.0))
+	_judge_voice(delta)
+	_judge_composure()
+	_judge_eyes(delta)
+	_judge_phantoms()
 	var i := 0
 	while i < _tests.size():
 		var t: Dictionary = _tests[i]
