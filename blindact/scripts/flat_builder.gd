@@ -31,13 +31,25 @@ var _m := {}
 
 
 func build() -> void:
-	_materials()
+	build_home()
 	_living()
 	_hallway()
 	_bathroom()
 	_bedroom()
-	_home()
 	_dress()
+
+
+## Just his room (where the night starts), so the game can begin at once.
+func build_home() -> void:
+	_materials()
+	_home()
+
+
+## The flat, a room per frame (a coroutine: await it).
+func build_rest() -> void:
+	for f: Callable in [_living, _hallway, _bathroom, _bedroom, _dress]:
+		f.call()
+		await get_tree().process_frame
 
 
 # ---------------------------------------------------------------------------

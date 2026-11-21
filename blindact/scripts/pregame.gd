@@ -49,9 +49,16 @@ var _capture := false
 var _look_target: Control
 
 
+const PRELOAD := ["res://scenes/game.tscn", "res://assets/models/man.glb", "res://assets/models/woman.glb"]
+
+
 func _ready() -> void:
 	_rng.randomize()
 	_capture = OS.get_cmdline_user_args().has("--capture")
+	# start loading the night in the background now
+	for path: String in PRELOAD:
+		if ResourceLoader.exists(path):
+			ResourceLoader.load_threaded_request(path)
 	eye_layer = CanvasLayer.new()
 	eye_layer.layer = 0
 	add_child(eye_layer)
@@ -229,8 +236,19 @@ func _do_shatter() -> void:
 
 
 func _on_shattered() -> void:
-	await get_tree().create_timer(0.8).timeout
-	if ResourceLoader.exists(GAME_SCENE):
+	await get_tree().create_timer(0.4).timeout
+	var ps: PackedScene = null
+	for path: String in PRELOAD:
+		if ResourceLoader.load_threaded_get_status(path) == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
+			continue
+		var res := ResourceLoader.load_threaded_get(path)
+		if path == GAME_SCENE:
+			ps = res as PackedScene
+		else:
+			Settings.cache[path] = res
+	if ps:
+		get_tree().change_scene_to_packed(ps)
+	elif ResourceLoader.exists(GAME_SCENE):
 		get_tree().change_scene_to_file(GAME_SCENE)
 	else:
 		get_tree().change_scene_to_file(MENU_SCENE)

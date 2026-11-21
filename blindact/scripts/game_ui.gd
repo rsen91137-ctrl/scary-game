@@ -15,6 +15,8 @@ var _think_t := 0.0
 var _think_len := 0.0
 var _hint: Label
 var _hint_t := 0.0
+var _hint_box: Panel
+var _objective: Label
 var _prompt: Label
 var _eyes: ColorRect
 var _rec: Label
@@ -47,7 +49,27 @@ func _ready() -> void:
 	add_child(_eyes)
 	_sub = _mk_label(30, Color(0.92, 0.88, 0.84), 0.05, 0.95, 0.83, 0.93)
 	_think = _mk_label(28, Color(0.68, 0.66, 0.64, 0.95), 0.12, 0.88, 0.7, 0.8)
-	_hint = _mk_label(22, Color(0.85, 0.3, 0.25, 0.9), 0.2, 0.8, 0.05, 0.11)
+	# hints: in a dark box at the top, until the thing is done
+	_hint_box = Panel.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.02, 0.03, 0.04, 0.72)
+	sb.border_color = Color(0.55, 0.65, 0.72, 0.5)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(4)
+	_hint_box.add_theme_stylebox_override("panel", sb)
+	_hint_box.anchor_left = 0.18
+	_hint_box.anchor_right = 0.82
+	_hint_box.anchor_top = 0.035
+	_hint_box.anchor_bottom = 0.155
+	_hint_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hint_box.modulate.a = 0.0
+	add_child(_hint_box)
+	_hint = _mk_label(24, Color(0.86, 0.92, 0.97), 0.19, 0.81, 0.04, 0.15)
+	_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_hint.modulate.a = 0.0
+	# the objective, always in the corner
+	_objective = _mk_label(22, Color(0.78, 0.85, 0.9, 0.9), 0.02, 0.5, 0.88, 0.95)
+	_objective.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_prompt = _mk_label(22, Color(0.85, 0.82, 0.78, 0.85), 0.35, 0.65, 0.58, 0.63)
 	_fake = _mk_label(56, Color(1.0, 0.15, 0.1), 0.2, 0.8, 0.62, 0.74)
 	_fake.visible = false
@@ -100,8 +122,26 @@ func think(line_key: String, secs := 4.0) -> void:
 
 func hint(line_key: String, secs := 5.0) -> void:
 	_hint.text = tr(line_key)
+	var rule := line_key.begins_with("HINT_RULE")
+	_hint.add_theme_color_override("font_color", Color(0.95, 0.42, 0.38) if rule else Color(0.86, 0.92, 0.97))
 	_hint.modulate.a = 1.0
+	_hint_box.modulate.a = 1.0
 	_hint_t = secs
+
+
+## A hint that stays until hint_clear() (or another hint replaces it).
+func hint_hold(line_key: String) -> void:
+	hint(line_key, INF)
+
+
+func hint_clear() -> void:
+	if _hint_t > 0.8:
+		_hint_t = 0.8
+
+
+## The current goal, shown in the corner until changed ("" hides it).
+func objective(key: String) -> void:
+	_objective.text = (tr("OBJ_PREFIX") + tr(key)) if key != "" else ""
 
 
 func prompt(text: String) -> void:
@@ -156,6 +196,7 @@ func _process(delta: float) -> void:
 	if _hint_t > 0.0:
 		_hint_t -= delta
 		_hint.modulate.a = clampf(_hint_t / 0.8, 0.0, 1.0)
+		_hint_box.modulate.a = _hint.modulate.a
 	if _fake_t > 0.0:
 		_fake_t -= delta
 		_fake.modulate.a = 0.6 + 0.4 * sin(_t * 30.0)

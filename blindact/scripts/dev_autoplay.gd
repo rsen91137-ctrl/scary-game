@@ -52,10 +52,6 @@ func _process(delta: float) -> void:
 					p.interacted.emit(id)
 			if _act_t > 10.0:
 				game.set("_clicks", 2)
-		"climb":
-			# up to the third floor, where the phone rings
-			if _act_t > 2.0 and _once("climb"):
-				p.global_position = game.stairs.to_global(Vector3(-0.6, StairBuilder.H + 0.05, -0.4))
 		"stairs":
 			if _act_t > 3.0 and _once("climb2"):
 				p.global_position = game.stairs.to_global(Vector3(-0.6, StairBuilder.H * game.stairs.her_floor + 0.05, -0.4))

@@ -64,10 +64,13 @@ var _flash := 0.0
 var _next_lightning := 18.0
 var _thunder_in := -1.0
 var lightning: SpotLight3D
-var _memory := 0.0             # 0..1 the image smears into a memory (flashback transitions)
-var _flash_pos := Vector3.ZERO
-var _flash_yaw := PI
 var _moon_k := 0
+var _world_ready := false
+signal world_ready
+var _fp_item: Node3D            # what he holds up in front of him (receiver, glasses)
+var _cord: MeshInstance3D       # the phone cord while the receiver is lifted
+var _cord_base := Vector3.ZERO
+var _tapping := false
 
 
 func _ready() -> void:
@@ -79,19 +82,11 @@ func _ready() -> void:
 	flat = FlatBuilder.new()
 	flat.name = "Flat"
 	add_child(flat)
-	flat.build()
+	flat.build_home()
 	stairs = StairBuilder.new()
 	stairs.name = "Stairs"
 	stairs.position = Vector3(0.0, 0.0, -40.0)
 	add_child(stairs)
-	stairs.build()
-	stairs.add_colliders()
-	stairs.place_moon(0)
-	stairs.configure(0, 7, "2")
-	stairs.configure(1, 8, "3")
-	stairs.configure(2, 9, "4")
-	stairs.her_floor = 2
-	stairs.add_knock_target()
 
 	player = Player.new()
 	player.name = "Player"
@@ -119,13 +114,11 @@ func _ready() -> void:
 	man = CharacterRig.new()
 	man.name = "Man"
 	add_child(man)
-	man.setup("man")
 	man.visible = false
 	woman = CharacterRig.new()
 	woman.name = "Woman"
 	add_child(woman)
-	woman.setup("woman")
-	_make_props()
+	woman.visible = false
 
 	_setup_audio()
 	_setup_ui()
@@ -143,23 +136,22 @@ func _ready() -> void:
 	_apply_settings()
 	if not _capture:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	var start := "climb"
+	var start := "home"
 	for a: String in OS.get_cmdline_user_args():
 		if a.begins_with("--act="):
 			start = a.substr(6)
 	if _capture:
 		add_child(load("res://scripts/dev_capture.gd").new())
 		_dev_place()
+	_build_world()
 	for a: String in OS.get_cmdline_user_args():
 		if a.begins_with("--autoplay"):
 			add_child(load("res://scripts/dev_autoplay.gd").new())
 	match start:
-		"home":
-			_act_home()
-		"return":
-			_act_return()
+		"stairs":
+			_act_stairs()
 		"door":
-			_act_return(true)
+			_dev_door()
 		"flat", "piano":
 			_act_flat()
 		"bath":
@@ -167,7 +159,7 @@ func _ready() -> void:
 		"chase":
 			_act_flat_quick_chase()
 		_:
-			_act_climb()
+			_act_home()
 
 
 # ---------------------------------------------------------------------------
@@ -386,6 +378,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseButton and event.pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 		_clicks += 1
+		if _tapping:
+			_tap_handset()
 		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and act != "end":
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -407,16 +401,347 @@ func _set_paused(on: bool) -> void:
 
 
 func _to_menu() -> void:
+	# stop everything that is still going, then leave on a clean frame
+	_gen += 1
+	act = "end"
+	_paused = false
 	get_tree().paused = false
+	for p: Node in [amb, chase_music, man_voice, phone_voice, ring_player, clock_player]:
+		if p:
+			p.stop()
+	piano_ui.stop()
+	ui.fade_now(1.0)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	await get_tree().process_frame
+	await get_tree().process_frame
 	get_tree().change_scene_to_file(MENU_SCENE)
 
 
+## Everything but his room, built in the background (he is on the phone).
+func _build_world() -> void:
+	await get_tree().process_frame
+	await flat.build_rest()
+	stairs.build()
+	await get_tree().process_frame
+	stairs.add_colliders()
+	stairs.place_moon(0)
+	stairs.configure(0, 7, "2")
+	stairs.configure(1, 8, "3")
+	stairs.configure(2, 9, "4")
+	stairs.her_floor = 2
+	stairs.add_knock_target()
+	await get_tree().process_frame
+	man.setup("man")
+	man.visible = false
+	await get_tree().process_frame
+	woman.setup("woman")
+	woman.visible = false
+	_make_props()
+	_world_ready = true
+	world_ready.emit()
+
+
+## Acts that need the flat, the stairs or the people wait for them.
+func _need_world() -> void:
+	if not _world_ready:
+		await world_ready
+
+
 # ---------------------------------------------------------------------------
-# ACT 1: the stairs. He climbs with his cane and his dark glasses; on the
-# third floor a phone rings behind a neighbour's door and he remembers the
-# call that brought him here (ACT 1b, a flashback: home, three hours
-# earlier). Then the last flight, and her door.
+# ACT 1: his room. The landline rings; a woman's voice; two taps on the
+# receiver for yes. His dark glasses, his white cane, out of the door.
+# ---------------------------------------------------------------------------
+func _act_home() -> void:
+	_gen += 1
+	var g := _gen
+	act = "home"
+	amb.stream = _stream("res://assets/audio/amb_flat.ogg")
+	amb.volume_db = -8.0
+	amb.play()
+	player.global_position = flat.spots.home_start
+	player.set_mode("walk", deg_to_rad(-140.0))
+	player.yaw = deg_to_rad(-140.0)
+	player.pitch = 0.0
+	player.cane_enabled = false
+	player.set_mode("walk")
+	player.can_close_eyes = false
+	sunglasses_target = 0.0
+	sunglasses = 0.0
+	ring_player.global_position = flat.spots.home_phone
+	ui.fade_now(1.0)
+	await wait(0.4)
+	_ring_loop(g)
+	ui.fade_to(0.0, 2.0)
+	ui.chapter("CH_1", 2.5)
+	await wait(2.0)
+	if not _alive(g):
+		return
+	think("THINK_PHONE_1", 3.0)
+	ui.objective("OBJ_PHONE")
+	ui.hint_hold("HINT_START")
+	await wait_interact("home_phone")
+	if not _alive(g):
+		return
+	ui.hint_clear()
+	_hints["picked"] = true
+	ring_player.stop()
+	# he lifts the receiver off the cradle to his ear
+	player.set_mode("locked")
+	await _turn_to(flat.spots.home_phone + Vector3(0, -0.2, 0), 0.5)
+	await _lift_handset()
+	_sfx("res://assets/audio/phone_click.ogg", -4.0)
+	ui.objective("OBJ_LISTEN")
+	await wait(0.8)
+	await phone_say("CALL_1", 3.5)
+	think("THINK_CALL_1", 3.2)
+	await wait(3.0)
+	await phone_say("CALL_2", 4.5)
+	await phone_say("CALL_3", 3.5)
+	# yes = two taps on the receiver
+	ui.objective("OBJ_TAP")
+	ui.hint_hold("HINT_KNOCK")
+	_clicks = 0
+	_tapping = true
+	var tries := 0
+	while _clicks < 2:
+		await wait(0.3)
+		tries += 1
+		if tries == 40:
+			await phone_say("CALL_1", 2.5)
+			tries = 0
+		if not _alive(g):
+			return
+	_tapping = false
+	ui.hint_clear()
+	ui.objective("OBJ_LISTEN")
+	await wait(0.6)
+	await phone_say("CALL_4", 4.5)
+	think("THINK_CALL_2", 3.0)
+	await wait(3.2)
+	await phone_say("CALL_5", 3.8)
+	think("THINK_CALL_3", 2.6)
+	await wait(2.8)
+	await phone_say("CALL_6", 4.0)
+	_sfx("res://assets/audio/phone_click.ogg", -4.0)
+	await wait(0.5)
+	_sfx("res://assets/audio/phone_dead.ogg", -14.0)
+	await wait(0.8)
+	await _hang_up()
+	if not _alive(g):
+		return
+	think("THINK_CALL_4", 2.5)
+	await wait(2.8)
+	think("THINK_CALL_5", 3.0)
+	await wait(3.3)
+	think("THINK_CALL_6", 3.8)
+	await wait(2.0)
+	player.set_mode("walk", player.yaw)
+	# glasses and cane, in any order
+	ui.objective("OBJ_GEAR")
+	ui.hint_hold("HINT_GEAR")
+	var got := {}
+	while got.size() < 2:
+		var id: String = await player.interacted
+		if not _alive(g):
+			return
+		if id == "glasses" and not got.has("glasses"):
+			got["glasses"] = true
+			await _put_on_glasses()
+		elif id == "cane" and not got.has("cane"):
+			got["cane"] = true
+			await _take_cane()
+		elif id == "home_door":
+			think("THINK_NOT_YET", 2.6)
+	ui.hint_clear()
+	think("THINK_GLASSES", 3.5)
+	player.can_close_eyes = true
+	ui.objective("OBJ_LEAVE")
+	ui.hint_hold("HINT_DOOR")
+	await wait_interact("home_door")
+	if not _alive(g):
+		return
+	ui.hint_clear()
+	await _leave_home()
+	if not _alive(g):
+		return
+	_act_stairs()
+
+
+func _ring_loop(g: int) -> void:
+	while _alive(g) and act == "home" and not _hints.has("picked"):
+		if not ring_player.playing:
+			ring_player.play()
+		await wait(0.5)
+
+
+## Turn the head to look at a point over `secs`.
+func _turn_to(p: Vector3, secs: float) -> void:
+	var t := 0.0
+	while t < secs:
+		var dt := get_process_delta_time()
+		t += dt
+		player.face_point(p, clampf(dt * 9.0, 0.0, 1.0))
+		await get_tree().process_frame
+	player.face_point(p, 1.0)
+
+
+func _home_phone() -> Node3D:
+	return flat.get_node_or_null("Home/Phone")
+
+
+## The receiver comes off the cradle up to his ear; the coiled cord follows.
+func _lift_handset() -> void:
+	var phone := _home_phone()
+	if phone == null:
+		return
+	var hs: Node3D = phone.get_node("Handset")
+	var fp := hs.duplicate() as Node3D
+	player.cam.add_child(fp)
+	fp.global_transform = hs.global_transform
+	hs.visible = false
+	var cord_static := phone.get_node_or_null("Cord")
+	if cord_static:
+		cord_static.visible = false
+	_fp_item = fp
+	_cord_base = phone.to_global(Vector3(0.1, 0.03, 0.02))
+	_cord = MeshInstance3D.new()
+	_cord.top_level = true
+	_cord.material_override = flat._m.bakelite
+	add_child(_cord)
+	# at the ear: the grip runs from the mouth (lower right of the view) up past the cheek
+	var ear := Transform3D(Basis(Vector3(0.0, 0.857, 0.514), Vector3(1.0, 0.0, 0.0), Vector3(0.0, 0.514, -0.857)), Vector3(0.11, -0.075, -0.085))
+	var tw := create_tween()
+	tw.tween_property(fp, "transform", ear, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	await tw.finished
+
+
+## A tap of a finger on the receiver (the only "yes" he can give).
+func _tap_handset() -> void:
+	if _fp_item == null:
+		return
+	var base := _fp_item.position
+	var tw := create_tween()
+	tw.tween_property(_fp_item, "position", base + Vector3(-0.012, 0.01, -0.025), 0.05)
+	tw.tween_property(_fp_item, "position", base, 0.12)
+	_sfx("res://assets/audio/knock.ogg", -15.0)
+
+
+## Back on the cradle.
+func _hang_up() -> void:
+	var phone := _home_phone()
+	if phone == null or _fp_item == null:
+		return
+	var hs: Node3D = phone.get_node("Handset")
+	var target := player.cam.global_transform.affine_inverse() * hs.global_transform
+	var tw := create_tween()
+	tw.tween_property(_fp_item, "transform", target, 0.8).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	await tw.finished
+	_sfx3d("res://assets/audio/phone_click.ogg", phone.global_position, -4.0, 1.5)
+	_fp_item.queue_free()
+	_fp_item = null
+	hs.visible = true
+	if _cord:
+		_cord.queue_free()
+		_cord = null
+	var cord_static := phone.get_node_or_null("Cord")
+	if cord_static:
+		cord_static.visible = true
+
+
+## The coiled cord between the phone and the receiver in his hand.
+func _update_cord() -> void:
+	if _cord == null or _fp_item == null:
+		return
+	var a := _cord_base
+	var b := _fp_item.to_global(Vector3(-0.1, -0.012, 0.0))
+	var d := a.distance_to(b)
+	var axis := (b - a).normalized()
+	var side := axis.cross(Vector3.UP)
+	if side.length() < 0.1:
+		side = Vector3.RIGHT
+	side = side.normalized()
+	var up2 := side.cross(axis)
+	var pts := PackedVector3Array()
+	var radii := PackedFloat32Array()
+	var n := 64
+	for i in n:
+		var t := float(i) / float(n - 1)
+		var p := a.lerp(b, t) + Vector3(0.0, -sin(t * PI) * 0.14 * d, 0.0)
+		var ang := t * TAU * 24.0
+		p += (side * cos(ang) + up2 * sin(ang)) * 0.0065 * sin(t * PI) ** 0.3
+		pts.append(p)
+		radii.append(0.0022)
+	_cord.mesh = MeshUtil.tube(pts, radii, 4)
+
+
+## The dark glasses: up off the table, unfolded in front of his face, on.
+func _put_on_glasses() -> void:
+	var gl: Node3D = flat.get_node("Home/Glasses")
+	player.set_mode("locked")
+	await _turn_to(gl.global_position, 0.35)
+	var fp := gl.duplicate() as Node3D
+	player.cam.add_child(fp)
+	fp.global_transform = gl.global_transform
+	gl.visible = false
+	var front := Transform3D(Basis(Vector3.UP, PI), Vector3(0.0, -0.03, -0.2))
+	var on := Transform3D(Basis(Vector3.UP, PI), Vector3(0.0, -0.004, -0.028))
+	var tw := create_tween()
+	tw.tween_property(fp, "transform", front, 0.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(0.2)
+	tw.tween_property(fp, "transform", on, 0.35).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	await tw.finished
+	fp.queue_free()
+	sunglasses = 0.6
+	sunglasses_target = 0.8
+	_sfx("res://assets/audio/rec_click.ogg", -16.0)
+	player.set_mode("walk", player.yaw)
+
+
+## The white cane: off its nail by the door and into his hand.
+func _take_cane() -> void:
+	var cane: Node3D = flat.get_node("Home/HomeCane")
+	player.set_mode("locked")
+	await _turn_to(cane.global_position, 0.35)
+	var fwd := Vector3(-sin(player.yaw), 0.0, -cos(player.yaw))
+	var right := Vector3(cos(player.yaw), 0.0, -sin(player.yaw))
+	var hand := player.global_position + Vector3(0, Player.EYE - 0.8, 0) + right * 0.24 + fwd * 0.28
+	var tip := player.global_position + fwd * 0.95 + Vector3(0, 0.02, 0)
+	var dir := tip - hand
+	var up := dir.normalized()
+	var ref := Vector3.FORWARD if absf(up.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT
+	var xax := up.cross(ref).normalized()
+	var zax := xax.cross(up).normalized()
+	var target := Transform3D(Basis(xax, up * (dir.length() / 1.2), zax), hand + dir * 0.5)
+	var tw := create_tween()
+	tw.tween_property(cane, "global_transform", target, 0.65).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	await tw.finished
+	cane.visible = false
+	player.cane_enabled = true
+	player.set_mode("walk", player.yaw)
+	_sfx3d("res://assets/audio/cane_tap_1.ogg", tip, -6.0, 2.0)
+
+
+## Out: the door swings open onto the dark, he steps through.
+func _leave_home() -> void:
+	player.set_mode("locked")
+	var hinge: Node3D = flat.doors["home_door"]
+	var door_mid := hinge.global_position + Vector3(0.45, 1.1, 0.0)
+	await _turn_to(door_mid, 0.4)
+	_sfx3d("res://assets/audio/door_creak.ogg", door_mid, -4.0)
+	var base: float = hinge.get_meta("base_rot", hinge.rotation.y)
+	create_tween().tween_property(hinge, "rotation:y", base + 1.45, 1.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	await wait(0.9)
+	var out := Vector3(hinge.global_position.x + 0.45, player.global_position.y, hinge.global_position.z - 0.9)
+	create_tween().tween_property(player, "global_position", out, 1.8).set_trans(Tween.TRANS_SINE)
+	await wait(0.9)
+	ui.fade_to(1.0, 0.8)
+	await wait(1.1)
+	hinge.rotation.y = base
+
+
+# ---------------------------------------------------------------------------
+# ACT 2: the stairs. Two floors up through the dark (the lights only wake to
+# a sound); a phone rings behind a neighbour's door; her door.
 # ---------------------------------------------------------------------------
 func _enter_stairs() -> void:
 	sunglasses_target = 0.8
@@ -442,239 +767,120 @@ func _climb_to(floors_up: float) -> void:
 		await wait(0.25)
 
 
-func _act_climb() -> void:
+func _act_stairs() -> void:
+	await _need_world()
 	_gen += 1
 	var g := _gen
-	act = "climb"
+	act = "stairs"
 	_enter_stairs()
 	ui.fade_now(1.0)
 	var start := stairs.to_global(Vector3(-0.68, 0.05, 0.4))
 	player.global_position = start
 	player.set_mode("walk", PI)
 	player.yaw = PI
-	await wait(0.8)
+	player.pitch = 0.0
+	await wait(0.3)
 	_wake_stair_lights(start)
-	ui.fade_to(0.0, 3.0)
-	ui.chapter("CH_1", 2.5)
-	await wait(3.2)
+	ui.fade_to(0.0, 1.6)
+	await wait(1.4)
 	if not _alive(g):
 		return
 	think("THINK_CLIMB_1", 3.5)
-	get_tree().create_timer(6.0, false).timeout.connect(func() -> void:
-		if act == "climb" and player.global_position.distance_to(start) < 0.6:
-			hint_once("HINT_MOVE", 5.0))
-	get_tree().create_timer(10.0, false).timeout.connect(func() -> void:
-		if act == "climb":
-			think("THINK_STAIRS_1", 3.5)
-			hint_once("HINT_CANE", 5.0))
-	await _climb_to(0.5)
+	ui.objective("OBJ_CLIMB")
+	ui.hint_hold("HINT_CLIMB")
+	await _climb_to(0.45)
 	if not _alive(g):
 		return
-	think("THINK_CLIMB_2", 4.5)
+	ui.hint_clear()
+	think("THINK_STAIRS_1", 3.5)
+	await wait(4.0)
+	hint_once("HINT_EYES", 5.0)
 	await _climb_to(1.0)
 	if not _alive(g):
 		return
+	think("THINK_CLIMB_2", 4.5)
 	# a phone rings behind a neighbour's door; nobody answers it
-	ring_player.global_position = stairs.neighbour_door(1)
-	ring_player.play()
-	await wait(1.6)
+	_ring_times(stairs.neighbour_door(1), 4, g)
+	await wait(5.0)
+	if not _alive(g):
+		return
 	think("THINK_CLIMB_3", 3.2)
 	await wait(3.6)
-	if not _alive(g):
-		return
 	think("THINK_CLIMB_4", 3.4)
-	_flash_pos = player.global_position
-	_flash_yaw = player.yaw
-	player.set_mode("locked")
-	player.face_point(stairs.neighbour_door(1), 0.4)
-	# the memory takes over: the image smears, doubles, drains
-	create_tween().tween_method(func(v: float) -> void: _memory = v, 0.0, 1.0, 2.8)
-	await wait(2.6)
-	ui.fade_to(1.0, 0.9)
-	await wait(1.1)
+	await _climb_to(1.5)
+	if not _alive(g):
+		return
+	think("THINK_CLIMB_5", 3.5)
+	await _climb_to(float(stairs.her_floor))
+	if not _alive(g):
+		return
+	_door_scene(g)
+
+
+func _ring_times(pos: Vector3, n: int, g: int) -> void:
+	ring_player.global_position = pos
+	for i in n:
+		if not _alive(g):
+			return
+		ring_player.play()
+		await wait(2.6)
 	ring_player.stop()
-	if not _alive(g):
-		return
-	_memory = 0.0
-	_act_home()
 
 
-func _act_home() -> void:
-	_gen += 1
-	var g := _gen
-	act = "home"
-	amb.stream = _stream("res://assets/audio/amb_flat.ogg")
-	amb.volume_db = -8.0
-	amb.play()
-	player.global_position = flat.spots.home_start
-	player.set_mode("walk", deg_to_rad(-140.0))
-	player.cane_enabled = false
-	player.set_mode("walk")
-	player.can_close_eyes = false
-	sunglasses_target = 0.0
-	ring_player.global_position = flat.spots.home_phone
-	ui.fade_now(1.0)
-	await wait(0.6)
-	ring_player.play()
-	ui.fade_to(0.0, 2.5)
-	ui.chapter("FLASH_PAST", 2.5)
-	await wait(2.4)
-	if not _alive(g):
-		return
-	think("THINK_PHONE_1", 3.0)
-	var ringing := true
-	_ring_loop(g)
-	get_tree().create_timer(7.0, false).timeout.connect(func() -> void:
-		if act == "home" and not _hints.has("picked"):
-			hint_once("HINT_MOVE", 5.0))
-	await wait_interact("home_phone")
-	if not _alive(g):
-		return
-	_hints["picked"] = true
-	ring_player.stop()
-	_sfx("res://assets/audio/phone_click.ogg", -4.0)
-	player.set_mode("locked")
-	player.face_point(flat.spots.home_phone + Vector3(0, -0.2, 0), 1.0)
-	await wait(1.2)
-	await phone_say("CALL_1", 3.5)
-	think("THINK_CALL_1", 3.2)
-	await wait(3.0)
-	await phone_say("CALL_2", 4.5)
-	await phone_say("CALL_3", 3.5)
-	hint_once("HINT_KNOCK", 6.0)
-	_clicks = 0
-	var tries := 0
-	while _clicks < 2:
-		await wait(0.3)
-		tries += 1
-		if tries == 40:
-			await phone_say("CALL_1", 2.5)
-			tries = 0
-		if not _alive(g):
-			return
-	_sfx3d("res://assets/audio/knock.ogg", flat.spots.home_phone, -14.0, 1.0)
-	await wait(1.0)
-	await phone_say("CALL_4", 4.5)
-	think("THINK_CALL_2", 3.0)
-	await wait(3.2)
-	await phone_say("CALL_5", 3.8)
-	think("THINK_CALL_3", 2.6)
-	await wait(2.8)
-	await phone_say("CALL_6", 4.0)
-	_sfx("res://assets/audio/phone_click.ogg", -4.0)
-	await wait(0.6)
-	_sfx("res://assets/audio/phone_dead.ogg", -14.0)
-	think("THINK_CALL_4", 2.5)
-	await wait(2.8)
-	think("THINK_CALL_5", 3.0)
-	await wait(3.3)
-	think("THINK_CALL_6", 3.8)
-	await wait(3.0)
-	player.set_mode("walk")
-	# glasses and cane, in any order
-	var got := {}
-	while got.size() < 2:
-		var id: String = await player.interacted
-		if not _alive(g):
-			return
-		if id == "glasses" and not got.has("glasses"):
-			got["glasses"] = true
-			flat.get_node("Home/Glasses").visible = false
-			sunglasses_target = 0.8
-		elif id == "cane" and not got.has("cane"):
-			got["cane"] = true
-			flat.get_node("Home/HomeCane").visible = false
-			player.cane_enabled = true
-			player.set_mode("walk")
-	think("THINK_GLASSES", 3.5)
-	player.can_close_eyes = true
-	await wait_interact("home_door")
-	if not _alive(g):
-		return
-	_sfx3d("res://assets/audio/door_creak.ogg", flat.spots.home_out, -6.0)
-	ui.fade_to(1.0, 1.2)
-	await wait(1.6)
-	_act_return()
-
-
-func _ring_loop(g: int) -> void:
-	while _alive(g) and act == "home" and not _hints.has("picked"):
-		if not ring_player.playing:
-			ring_player.play()
-		await wait(0.5)
-
-
-# ---------------------------------------------------------------------------
-# ACT 2: back on the stairs (now), the last flight and the door
-# ---------------------------------------------------------------------------
-func _act_return(at_door := false) -> void:
-	_gen += 1
-	var g := _gen
-	act = "stairs"
-	_enter_stairs()
-	if at_door:
-		_flash_pos = stairs.to_global(Vector3(-0.6, StairBuilder.H * stairs.her_floor + 0.05, -0.2))
-		_flash_yaw = PI * 0.5
-	elif _flash_pos == Vector3.ZERO:
-		_flash_pos = stairs.to_global(Vector3(-0.6, StairBuilder.H + 0.05, -0.4))
-	ui.fade_now(1.0)
-	player.global_position = _flash_pos
-	player.set_mode("walk", _flash_yaw)
-	player.yaw = _flash_yaw
-	player.pitch = 0.0
-	_memory = 0.7
-	create_tween().tween_method(func(v: float) -> void: _memory = v, 0.7, 0.0, 2.6)
-	_wake_stair_lights(_flash_pos)
-	ui.fade_to(0.0, 1.8)
-	if not at_door:
-		ui.chapter("FLASH_NOW", 2.0)
-		await wait(2.8)
-		if not _alive(g):
-			return
-		think("THINK_CLIMB_5", 3.8)
-		await _climb_to(1.5)
-		if not _alive(g):
-			return
-		think("THINK_CLIMB_6", 3.5)
-		await _climb_to(float(stairs.her_floor))
-		if not _alive(g):
-			return
-	else:
-		await wait(1.0)
+## Her door: knock, the door opens, he looks into your eyes.
+func _door_scene(g: int) -> void:
 	think("THINK_DOOR_0", 2.5)
+	ui.objective("OBJ_KNOCK")
+	ui.hint_hold("HINT_KNOCK_DOOR")
 	await wait_interact("her_door")
 	if not _alive(g):
 		return
-	_sfx3d("res://assets/audio/knock.ogg", stairs.knock_pos(), -2.0)
+	ui.hint_clear()
+	ui.objective("")
 	player.set_mode("locked")
-	await wait(2.4)
-	# the door opens; he is there, in the dark
+	await _turn_to(stairs.knock_pos(), 0.4)
+	for i in 3:
+		_sfx3d("res://assets/audio/knock.ogg", stairs.knock_pos(), -4.0 + i, 1.5)
+		player.heartbeat_kick(0.3)
+		await wait(0.42)
+	await wait(2.2)
+	if not _alive(g):
+		return
+	# the door opens; he is there, in the dark of the hallway
 	var hinge := stairs.her_hinge()
 	_sfx3d("res://assets/audio/door_creak.ogg", stairs.knock_pos(), -4.0)
 	create_tween().tween_property(hinge, "rotation:y", -1.25, 1.6).set_trans(Tween.TRANS_SINE)
 	man.visible = true
-	man.global_position = stairs.to_global(Vector3(-StairBuilder.W - 0.35, StairBuilder.H * stairs.her_floor, -1.0))
+	man.global_position = stairs.to_global(Vector3(-StairBuilder.W - 0.4, StairBuilder.H * stairs.her_floor, -1.0))
 	man.look_at(Vector3(player.global_position.x, man.global_position.y, player.global_position.z), Vector3.UP, true)
 	man.set_pose("stand", 0.0)
-	await wait(1.8)
-	# he leans in, his face at yours, staring into your eyes
+	await wait(1.6)
+	if not _alive(g):
+		return
+	# he leans in close, his face a hand's breadth from yours, and studies your eyes
+	ui.hint_hold("HINT_RULE_SEE")
+	player.set_mode("still", player.yaw)
 	player.face_point(man.bone_pos("head"), 1.0)
 	man.set_pose("lean_in", 1.2)
-	create_tween().tween_property(man, "global_position", man.global_position + (player.global_position - man.global_position).normalized() * 0.45 * Vector3(1, 0, 1), 1.2)
+	var to_player := (player.global_position - man.global_position) * Vector3(1, 0, 1)
+	var step := clampf(to_player.length() - 0.9, 0.0, 0.4)
+	create_tween().tween_property(man, "global_position", man.global_position + to_player.normalized() * step, 1.2)
 	await wait(0.6)
 	state.watched = true
 	state.visual("door_face", man.bone_pos("head"), 4.0, 0.4)
-	player.set_mode("seated", player.yaw)
 	await wait(4.2)
 	if not _alive(g):
 		return
+	ui.hint_clear()
 	think("THINK_DOOR_1", 3.5)
-	hint_once("HINT_RULE_SEE", 6.0)
 	await wait(3.0)
 	man.set_pose("stand", 0.8)
 	await man_say("MAN_1", 2.6)
-	hint_once("HINT_NOD", 6.0)
-	var gsture := await wait_gesture(8.0)
+	if not _alive(g):
+		return
+	ui.hint_hold("HINT_NOD")
+	var gsture := await wait_gesture(10.0)
+	ui.hint_clear()
 	if not _alive(g):
 		return
 	if gsture == "shake":
@@ -682,13 +888,53 @@ func _act_return(at_door := false) -> void:
 	await man_say("MAN_2", 3.0)
 	ui.fade_to(1.0, 1.2)
 	await wait(1.5)
+	if not _alive(g):
+		return
 	_act_flat()
+
+
+## Found out on the landing: he pulls you inside. The night ends at the door.
+func _door_grab(reason: String) -> void:
+	_gen += 1
+	act = "end"
+	ui.hint_clear()
+	ui.objective("")
+	player.set_mode("locked")
+	man.visible = true
+	man.set_pose("lunge", 0.25)
+	var to_p := (player.global_position - man.global_position) * Vector3(1, 0, 1)
+	create_tween().tween_property(man, "global_position", player.global_position - to_p.normalized() * 0.6, 0.35)
+	player.face_point(man.bone_pos("head"), 1.0)
+	_sfx("res://assets/audio/stinger.ogg", 0.0)
+	adrenaline = 1.0
+	red_flash = 1.0
+	await wait(0.6)
+	_sfx3d("res://assets/audio/door_slam.ogg", stairs.knock_pos(), 0.0)
+	ui.fade_now(1.0)
+	await wait(1.6)
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	var why := tr("WHY") + "\n" + tr(state.last_reason if state.last_reason != "" else reason)
+	ui.show_end("END_DEAD", "END_DOOR_D", why, state.mic_history, mic.threshold_db())
+
+
+func _dev_door() -> void:
+	await _need_world()
+	_gen += 1
+	act = "stairs"
+	_enter_stairs()
+	player.global_position = stairs.to_global(Vector3(-0.3, StairBuilder.H * stairs.her_floor + 0.05, -1.0))
+	player.set_mode("walk", PI * 0.5)
+	player.yaw = PI * 0.5
+	_wake_stair_lights(player.global_position)
+	ui.fade_to(0.0, 0.5)
+	_door_scene(_gen)
 
 
 # ---------------------------------------------------------------------------
 # ACT 3: the flat
 # ---------------------------------------------------------------------------
 func _act_flat() -> void:
+	await _need_world()
 	_gen += 1
 	var g := _gen
 	act = "flat"
@@ -727,7 +973,9 @@ func _act_flat() -> void:
 	# the bathroom
 	_tr("to the bathroom")
 	await man_say("MAN_5", 3.4)
-	player.set_mode("walk", player.yaw)
+	_stand_up()
+	ui.objective("OBJ_BATH")
+	ui.hint("HINT_BATH", 7.0)
 	man_stand_at(flat.spots.front_inside + Vector3(-0.2, 0.0, 1.0), Vector3(0, 0, 3.0))
 	_blood_test(g)
 	await _bathroom_sequence(g)
@@ -735,10 +983,13 @@ func _act_flat() -> void:
 		return
 	_tr("back to the piano")
 	await man_say("MAN_8", 2.5)
+	ui.objective("OBJ_BACK")
+	ui.hint("HINT_BACK", 6.0)
 	await _walk_back_to_piano(g)
 	if not _alive(g):
 		return
 	# second piece: the string, the duet
+	ui.objective("")
 	_sit_at_piano()
 	_tr("piece 2")
 	piano_ui.start(PianoGame.prelude())
@@ -754,6 +1005,8 @@ func _act_flat() -> void:
 	_tr("midnight")
 	await man_say("MAN_13", 3.2)
 	_stand_up()
+	ui.objective("OBJ_EXIT")
+	ui.hint("HINT_EXIT", 7.0)
 	if woman.current == "slump":
 		woman.visible = false
 	await _leaving(g)
@@ -773,6 +1026,8 @@ func _stand_up() -> void:
 	player.set_mode("walk", player.yaw)
 	player.cane_enabled = true
 	player.set_mode("walk", player.yaw)
+	# beside the bench, clear of the coffee table
+	player.unstick()
 
 
 func man_stand_at(pos: Vector3, face: Vector3) -> void:
@@ -921,6 +1176,7 @@ func _bathroom_sequence(g: int) -> void:
 	state.visual("tub", woman.bone_pos("head"), 3.0, 0.6)
 	await wait(1.5)
 	_tr("in the bathroom")
+	ui.hint_hold("HINT_WASH")
 	think("THINK_BATH_1", 3.0)
 	await wait(3.2)
 	think("THINK_BATH_2", 3.0)
@@ -938,6 +1194,8 @@ func _bathroom_sequence(g: int) -> void:
 		t += 1.0
 	if not _alive(g):
 		return
+	ui.hint_clear()
+	ui.objective("")
 	_tr("washing")
 	player.set_mode("locked")
 	player.global_position = flat.spots.sink_stand
@@ -1145,6 +1403,9 @@ func _frame_lines() -> String:
 func _on_exposed(reason: String) -> void:
 	if act == "end" or act == "chase":
 		return
+	if act == "stairs" or act == "home":
+		_door_grab(reason)
+		return
 	_gen += 1
 	var g := _gen
 	act = "chase"
@@ -1164,7 +1425,8 @@ func _on_exposed(reason: String) -> void:
 		return
 	chase_music.volume_db = -3.0
 	chase_music.play()
-	hint_once("HINT_CHASE", 5.0)
+	ui.objective("OBJ_HIDE")
+	ui.hint("HINT_CHASE", 8.0)
 	if man.global_position.distance_to(player.global_position) < 1.6:
 		# he is right there: a moment to break away
 		man.global_position = player.global_position + (man.global_position - player.global_position).normalized() * 1.8
@@ -1173,6 +1435,7 @@ func _on_exposed(reason: String) -> void:
 
 
 func _act_flat_quick_chase() -> void:
+	await _need_world()
 	_act_flat()
 	await wait(3.0)
 	state.expose("TELL_FLINCH")
@@ -1314,7 +1577,7 @@ func _on_interact(id: String) -> void:
 
 func _on_tap(pos: Vector3) -> void:
 	_sfx3d("res://assets/audio/cane_tap_%d.ogg" % _rng.randi_range(1, 4), pos, -6.0, 2.0)
-	if act == "stairs" or act == "climb":
+	if act == "stairs":
 		for L: SensorLight in stairs.lights:
 			if L.global_position.distance_to(pos) < 3.6:
 				L.trigger()
@@ -1326,14 +1589,18 @@ func _on_tap(pos: Vector3) -> void:
 
 func _on_step(pos: Vector3) -> void:
 	var path := "res://assets/audio/step_%d.ogg" % _rng.randi_range(1, 8)
-	_sfx3d(path, pos, -12.0 if act != "chase" else -6.0, 2.0)
-	if act == "stairs" or act == "climb":
+	var vol := -2.5 if player.on_stairs else -6.0
+	if act == "chase":
+		vol = -1.0
+	_sfx3d(path, pos, vol, 3.0)
+	if act == "stairs":
 		for L: SensorLight in stairs.lights:
 			if L.global_position.distance_to(pos) < 2.8:
 				L.trigger()
 
 
 func _dev_place() -> void:
+	await _need_world()
 	await wait(0.4)
 	for a: String in OS.get_cmdline_user_args():
 		if a.begins_with("--pos="):
@@ -1401,12 +1668,10 @@ func _process(delta: float) -> void:
 	lightning.light_energy = fl * 14.0
 	flat.window_mat.set_shader_parameter("flash", fl)
 	flat.window_mat.set_shader_parameter("time_s", _t)
-	stairs.window_mat.set_shader_parameter("time_s", _t)
-	var memory_look := 0.3 if act == "home" else 0.0
-	post_mat.set_shader_parameter("ghost", _memory * 0.7 + memory_look * 0.4)
-	post_mat.set_shader_parameter("blur", _memory * 0.9)
-	post_mat.set_shader_parameter("desaturate", clampf(_memory * 0.6 + memory_look, 0.0, 1.0))
-	if act == "climb" or act == "stairs":
+	if stairs.window_mat:
+		stairs.window_mat.set_shader_parameter("time_s", _t)
+	_update_cord()
+	if act == "stairs":
 		var k := clampi(int((player.global_position.y - stairs.global_position.y) / StairBuilder.H + 0.25), 0, 2)
 		if k != _moon_k:
 			_moon_k = k

@@ -10,5 +10,5 @@ python3 tools/fix_imports.py
 mkdir -p build/windows
 "$GODOT" --headless --path . --export-release "Windows Desktop" build/windows/BlindAct.exe > build/export_windows.log 2>&1
 grep -iE "^ERROR|SCRIPT ERROR" build/export_windows.log && { echo "export reported errors (see build/export_windows.log)"; exit 1; }
-(cd build/windows && rm -f BlindAct-windows.zip && zip -q -9 BlindAct-windows.zip BlindAct.exe)
+(cd build/windows && rm -f BlindAct-windows.zip && cp ../../tools/README_windows.txt "运行说明 README.txt" && zip -q -9 BlindAct-windows.zip BlindAct.exe BlindAct.pck "运行说明 README.txt")
 ls -la build/windows

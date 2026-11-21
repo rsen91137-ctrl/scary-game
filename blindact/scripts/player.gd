@@ -35,6 +35,8 @@ var shake_scale := 1.0
 var breath := 0.0
 var expect_gesture := false
 var eye_h := EYE                # head height (lower when seated)
+var on_stairs := false         # climbing: shorter strides, a step up each time
+var step_len := 0.62           # seconds per footstep (shorter on the stairs)
 
 var _step_t := 0.0
 var _cane_phase := 0.0
@@ -45,6 +47,9 @@ var _g_samples: Array = []     # [time, dx, dy]
 var _t := 0.0
 var _rng := RandomNumberGenerator.new()
 var _locked_xf := Transform3D()
+var _stuck_t := 0.0
+var _last_pos := Vector3.ZERO
+var _cane_tip_pos := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -107,6 +112,10 @@ func set_mode(m: String, center_yaw := INF) -> void:
 			yaw_range = deg_to_rad(35.0)
 			pitch_range = Vector2(-0.3, 0.3)
 			eye_h = 1.55
+		"still":
+			yaw_range = deg_to_rad(70.0)
+			pitch_range = Vector2(-0.5, 0.45)
+			eye_h = EYE
 		"walk":
 			yaw_range = PI
 			pitch_range = Vector2(-1.25, 1.2)
@@ -177,11 +186,24 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y = -0.1
 	move_and_slide()
+	on_stairs = is_on_floor() and get_floor_normal().y < 0.97
+	step_len = 0.44 if on_stairs else 0.62
 	if input.length() > 0.1:
 		_step_t += delta
-		if _step_t > 0.62:
+		if _step_t > step_len:
 			_step_t = 0.0
 			stepped.emit(global_position)
+		# pushing but not moving for a while: something holds us; step free
+		if global_position.distance_to(_last_pos) < 0.004:
+			_stuck_t += delta
+			if _stuck_t > 1.2:
+				_stuck_t = 0.0
+				unstick()
+		else:
+			_stuck_t = 0.0
+	else:
+		_stuck_t = 0.0
+	_last_pos = global_position
 
 
 func _process(delta: float) -> void:
@@ -190,7 +212,7 @@ func _process(delta: float) -> void:
 	# eyes
 	eyes_closed = can_close_eyes and Input.is_key_pressed(KEY_SPACE) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	# limits
-	if mode == "seated" or mode == "hidden":
+	if mode == "seated" or mode == "hidden" or mode == "still":
 		var dy := wrapf(yaw - yaw_center, -PI, PI)
 		yaw = yaw_center + clampf(dy, -yaw_range, yaw_range)
 	pitch = clampf(pitch, pitch_range.x, pitch_range.y)
@@ -202,7 +224,11 @@ func _process(delta: float) -> void:
 		_kick_v += (-_kick * k - _kick_v * 2.0 * sqrt(k) * 0.6) * h
 		_kick += _kick_v * h
 	var moving := mode == "walk" and Vector2(velocity.x, velocity.z).length() > 0.1
-	var bob := sin(_step_t / 0.62 * PI) * 0.018 if moving else 0.0
+	var bob := 0.0
+	if moving:
+		var ph := clampf(_step_t / step_len, 0.0, 1.0)
+		# on the stairs every stride lifts you a riser: rise, then settle
+		bob = (sin(ph * PI) * 0.032 - 0.012) if on_stairs else sin(ph * PI) * 0.018
 	head.position.y = eye_h + bob + breath * 0.006
 	head.rotation = Vector3(0.0, yaw, 0.0)
 	cam.rotation = Vector3(pitch + _kick.y * 0.01, _kick.x * 0.01, 0.0)
@@ -237,12 +263,56 @@ func _update_focus() -> void:
 			focus = hit2.collider
 
 
+## Where the cane's tip is: swinging ahead, resting on whatever is under it
+## (the next steps when climbing) and never through a wall.
 func _cane_tip() -> Vector3:
 	var fwd := Vector3(-sin(yaw), 0.0, -cos(yaw))
 	var right := Vector3(cos(yaw), 0.0, -sin(yaw))
 	var swing := sin(_cane_phase)
 	var tip := global_position + fwd * 0.95 + right * swing * 0.3
-	return Vector3(tip.x, global_position.y + 0.02, tip.z)
+	tip.y = global_position.y + 0.02
+	if not is_inside_tree():
+		return tip
+	var space := get_world_3d().direct_space_state
+	var hand := global_position + Vector3(0, EYE - 0.8, 0) + right * 0.24 + fwd * 0.28
+	# the ground under the tip (a step up or down)
+	var q := PhysicsRayQueryParameters3D.create(Vector3(tip.x, global_position.y + 0.75, tip.z), Vector3(tip.x, global_position.y - 0.8, tip.z))
+	q.exclude = [get_rid()]
+	q.collision_mask = 1
+	var hit := space.intersect_ray(q)
+	if hit:
+		tip.y = float(hit.position.y) + 0.01
+	# a wall, a railing or furniture between the hand and the tip stops it
+	var q2 := PhysicsRayQueryParameters3D.create(hand, tip)
+	q2.exclude = [get_rid()]
+	q2.collision_mask = 1 | 4
+	var hit2 := space.intersect_ray(q2)
+	if hit2:
+		tip = (hit2.position as Vector3) + (hand - (hit2.position as Vector3)).normalized() * 0.015
+	_cane_tip_pos = tip
+	return tip
+
+
+## Free the body if it is caught inside furniture: try spots around it.
+func unstick() -> void:
+	if not is_inside_tree():
+		return
+	var space := get_world_3d().direct_space_state
+	var shape := CapsuleShape3D.new()
+	shape.radius = 0.27
+	shape.height = 1.6
+	var params := PhysicsShapeQueryParameters3D.new()
+	params.shape = shape
+	params.collision_mask = 1 | 4
+	params.exclude = [get_rid()]
+	for r: float in [0.0, 0.3, 0.5, 0.75, 1.0]:
+		for k in 12:
+			var a := TAU * float(k) / 12.0
+			var p := global_position + Vector3(cos(a) * r, 0.0, sin(a) * r)
+			params.transform = Transform3D(Basis.IDENTITY, p + Vector3(0, 0.9, 0))
+			if space.intersect_shape(params, 1).is_empty():
+				global_position = p
+				return
 
 
 func _update_cane(delta: float, moving: bool) -> void:

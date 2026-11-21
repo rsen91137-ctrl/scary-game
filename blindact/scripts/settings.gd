@@ -31,6 +31,7 @@ var difficulty := 1           # 0 easy, 1 normal, 2 hard, 3 nightmare
 var mic_this_run := true      # chosen on the calibration screen (not saved)
 
 var mic_player: AudioStreamPlayer
+var cache := {}                  # resources preloaded for the next scene (kept alive here)
 var mic_capture: AudioEffectCapture
 
 
@@ -68,9 +69,9 @@ func _setup_buses() -> void:
 	var sfx := AudioServer.get_bus_index("SFX")
 	if AudioServer.get_bus_effect_count(sfx) == 0:
 		var rv2 := AudioEffectReverb.new()
-		rv2.room_size = 0.35
+		rv2.room_size = 0.55
 		rv2.damping = 0.65
-		rv2.wet = 0.14
+		rv2.wet = 0.2
 		AudioServer.add_bus_effect(sfx, rv2)
 	# the old upright in a high-ceilinged room
 	var pno := AudioServer.get_bus_index("Piano")

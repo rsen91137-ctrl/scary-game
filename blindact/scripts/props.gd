@@ -215,7 +215,7 @@ static func rotary_phone(parent: Node3D, m: Dictionary, pos: Vector3, rot_y: flo
 	for sx: float in [-0.065, 0.065]:
 		rb(p, Vector3(0.025, 0.04, 0.03), Vector3(sx, 0.11, -0.06), bk, 0.008)
 	# the handset lying across the cradle: ear and mouth cups on a curved grip
-	var hs := node(p, Vector3(0, 0.135, -0.06))
+	var hs := node(p, Vector3(0, 0.135, -0.06), 0.0, "Handset")
 	tube(hs, [Vector3(-0.1, 0.0, 0.0), Vector3(-0.04, 0.012, 0.0), Vector3(0.04, 0.012, 0.0), Vector3(0.1, 0.0, 0.0)],
 			[0.014, 0.012, 0.012, 0.014], bk, 12)
 	for sx: float in [-1.0, 1.0]:
@@ -232,7 +232,8 @@ static func rotary_phone(parent: Node3D, m: Dictionary, pos: Vector3, rot_y: flo
 		var ang := t * TAU * 18.0
 		coil.append(base + Vector3(0.0, cos(ang) * 0.006, sin(ang) * 0.006))
 		radii.append(0.0022)
-	tube(p, coil, radii, bk, 5)
+	var cord := tube(p, coil, radii, bk, 5)
+	cord.name = "Cord"
 	return p
 
 
