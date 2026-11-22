@@ -109,6 +109,24 @@ func _off() -> Vector3:
 	return _offs.get(ghost, Vector3(0.0, 1.5, 0.03))
 
 
+## A different body every time: her as the thing in your head or as she
+## lay in the hall; standing, reaching, stooped to your face.
+func _vary(kind: String) -> void:
+	if ghost == ghost_w:
+		var look := "womanc" if _rng.randf() < 0.35 else "womang"
+		if ghost.tex_who != look:
+			ghost.retexture(look)
+	var poses := ["stand", "stand", "lunge", "offer", "peer"]
+	if kind == "upside" or kind == "ceiling":
+		poses = ["stand", "offer"]
+	elif kind == "lunge":
+		poses = ["lunge", "offer"]
+	ghost.set_pose(poses[_rng.randi() % poses.size()], 0.0)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_offs[ghost] = ghost.global_transform.affine_inverse() * ghost.bone_pos("head")
+
+
 func _sting(from_hard: bool) -> String:
 	var k := 0
 	for i in 6:
@@ -338,6 +356,7 @@ func pop(kind := "pop", quiet_first := true) -> void:
 	ghost = ghost_m if _rng.randf() < 0.3 else ghost_w
 	if dev_who != "":
 		ghost = ghost_m if dev_who == "m" else ghost_w
+	await _vary(kind)
 	# some nights the room goes quiet first; on others there is no warning at all
 	if quiet_first and _rng.randf() < 0.4:
 		hush(1.6, 1.5)
