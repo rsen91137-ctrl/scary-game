@@ -2955,7 +2955,16 @@ func _on_interact(id: String) -> void:
 			if act == "chase" or (id == "wardrobe" and free_time):
 				_toggle_hide(id)
 		"window_escape":
-			if act == "chase":
+			if free_time and act == "flat":
+				# while he is out: the nails, the fire escape, the night
+				if not has_crowbar:
+					think("THINK_NAILED", 3.0)
+				else:
+					_sfx3d("res://assets/audio/nails_pry.ogg", flat.spots.escape + Vector3(0, 1.2, 0.3), 0.0, 4.0)
+					player.set_mode("locked")
+					await wait(2.6)
+					_escape("END_ESCAPE", "END_SNEAK_D")
+			elif act == "chase":
 				if not has_crowbar:
 					think("THINK_NAILED", 3.0)
 				else:
@@ -2967,7 +2976,7 @@ func _on_interact(id: String) -> void:
 					if act == "chase":
 						_escape("END_ESCAPE", "END_ESCAPE_D")
 		"front_door":
-			if act == "chase" and found("key"):
+			if (act == "chase" or (free_time and act == "flat")) and found("key"):
 				_escape("END_ESCAPE", "END_KEY_D")
 			elif act == "chase" or front_locked:
 				think("THINK_LOCKED", 1.5)

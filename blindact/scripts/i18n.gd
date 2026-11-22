@@ -339,6 +339,7 @@ const STRINGS := {
 	"TELL_FLASH": {"zh_CN": "闪光灯亮的时候你眨了眼。", "en": "You blinked at the flash."},
 	"OBJ_CHASE": {"zh_CN": "逃出去：保险箱里的备用钥匙、撬开卧室的窗、阁楼的天窗——或者躲起来", "en": "Get out: the spare key in the safe, pry open the bedroom window, the attic skylight - or hide"},
 	"HINT_CHASE_V3": {"zh_CN": "他锁了大门，钥匙在他身上。书房保险箱里有备用钥匙；杂物间的撬棍能撬开卧室被钉死的窗；阁楼有天窗；总电闸也在杂物间。也可以躲：衣柜、餐桌底下、储藏室。别出声。", "en": "He's locked the front door and pocketed the key. The study safe holds a spare; the crowbar in the utility room opens the nailed bedroom window; the attic has a skylight; the fuse box is in the utility room too. Or hide: wardrobes, under the dining table, the pantry. Not a sound."},
+	"END_SNEAK_D": {"zh_CN": "他下楼扔垃圾的时候，你撬开了卧室的窗，顺着消防梯爬了下去。\n你身上还带着证据。他回来时，屋里只剩一架还在响的钢琴。", "en": "While he was down at the bins you pried the bedroom window and climbed down the fire escape.\nYou took the evidence with you. When he came back, there was only the piano, still ringing."},
 	"TELL_SCREAM": {"zh_CN": "你叫出了声。他听得一清二楚。", "en": "You screamed. He heard every bit of it."},
 	"TELL_GASP": {"zh_CN": "你被吓得出了声。可那里明明什么都没有。", "en": "It startled a sound out of you. And there was nothing there."},
 	"TELL_FROZE": {"zh_CN": "你突然站住了。盲人不会无缘无故停下。", "en": "You stopped dead. A blind man doesn't stop for nothing."},
