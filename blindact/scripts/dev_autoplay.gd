@@ -52,7 +52,34 @@ func _process(delta: float) -> void:
 					p.interacted.emit(id)
 			if _act_t > 10.0:
 				game.set("_clicks", 2)
+		"door_chase":
+			# run down the stairs, a little faster than he can follow
+			var H := StairBuilder.H
+			var k: int = game.stairs.her_floor
+			if _once("runpath"):
+				var pts: Array[Vector3] = []
+				for f in range(k, 0, -1):
+					var y := H * f
+					pts.append_array([Vector3(0.0, y, 0.3), Vector3(0.68, y, 1.25), Vector3(0.68, y - H * 0.5, 3.45),
+						Vector3(0.0, y - H * 0.5, 4.1), Vector3(-0.68, y - H * 0.5, 3.45), Vector3(-0.68, y - H, 1.25), Vector3(0.0, y - H, 0.3)])
+				pts.append(Vector3(-0.68, 0.0, 0.4))
+				set_meta("pts", pts)
+				set_meta("i", 0)
+				set_meta("u", 0.0)
+			var pts: Array = get_meta("pts")
+			var i: int = get_meta("i")
+			if i < pts.size() - 1:
+				var u: float = float(get_meta("u")) + delta * 3.1 / maxf(0.01, Vector3(pts[i]).distance_to(pts[i + 1]))
+				if u >= 1.0:
+					u = 0.0
+					i += 1
+					set_meta("i", i)
+				set_meta("u", u)
+				if i < pts.size() - 1:
+					p.global_position = game.stairs.to_global(Vector3(pts[i]).lerp(pts[i + 1], u) + Vector3(0, 0.05, 0))
 		"stairs":
+			if mode == "run" and p.mode == "walk" and game.ui.get("_hint").text != "" and _act_t > 3.0 and game.man.visible and _once("flee"):
+				p.global_position += Vector3(0.0, 0.0, 1.5).rotated(Vector3.UP, p.yaw + PI)
 			if _act_t > 3.0 and _once("climb2"):
 				p.global_position = game.stairs.to_global(Vector3(-0.6, StairBuilder.H * game.stairs.her_floor + 0.05, -0.4))
 			if _act_t > 5.0 and fmod(_act_t, 1.5) < get_process_delta_time():

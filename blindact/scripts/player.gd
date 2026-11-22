@@ -13,8 +13,11 @@ signal interacted(id: String)
 signal tapped(pos: Vector3)
 signal stepped(pos: Vector3)
 signal gesture(kind: String)
+signal sprint_changed(on: bool)
 
-const EYE := 1.62
+const EYE := 1.5
+const SPRINT_DRAIN := 0.2      # stamina per second of running
+const SPRINT_REGEN := 0.14
 
 var mode := "walk"
 var cam: Camera3D
@@ -44,6 +47,12 @@ var _punch_seed := 0.0
 var _safe_pos := Vector3.INF   # last place you stood on a floor
 var _safe_t := 0.0
 var _forced_until := -1.0
+var can_sprint := true
+var sprinting := false
+var stamina := 1.0             # 0..1
+var exhausted := false         # ran dry: no running until it comes back
+var _last_w := -9.0
+var _since_sprint := 9.0
 var breath := 0.0
 var expect_gesture := false
 var eye_h := EYE                # head height (lower when seated)
@@ -119,11 +128,19 @@ func set_mode(m: String, center_yaw := INF) -> void:
 		"seated":
 			yaw_range = deg_to_rad(105.0)
 			pitch_range = Vector2(-0.65, 0.6)
-			eye_h = 1.18
+			eye_h = 1.1
 		"hidden":
 			yaw_range = deg_to_rad(35.0)
 			pitch_range = Vector2(-0.3, 0.3)
-			eye_h = 1.55
+			eye_h = 1.42
+		"hidden_low":
+			yaw_range = deg_to_rad(50.0)
+			pitch_range = Vector2(-0.35, 0.3)
+			eye_h = 0.55
+		"bed":
+			yaw_range = deg_to_rad(80.0)
+			pitch_range = Vector2(-0.3, 1.1)
+			eye_h = 0.62
 		"still":
 			yaw_range = deg_to_rad(70.0)
 			pitch_range = Vector2(-0.5, 0.45)
@@ -148,6 +165,31 @@ func heartbeat_kick(strength: float) -> void:
 
 ## Turn the view to look at `p` over `secs`, easing in and out (the game
 ## turning your head for you; not counted as your own jerk of the head).
+func _set_sprint(on: bool) -> void:
+	if on == sprinting:
+		return
+	sprinting = on
+	sprint_changed.emit(on)
+
+
+## Running costs breath. Run dry and you walk, panting, until it comes back.
+func _update_stamina(delta: float, input: Vector2) -> void:
+	if sprinting and (not Input.is_key_pressed(KEY_W) or mode != "walk" or not can_sprint or input.y > -0.1):
+		_set_sprint(false)
+	if sprinting:
+		_since_sprint = 0.0
+		stamina = maxf(0.0, stamina - SPRINT_DRAIN * delta)
+		if stamina <= 0.0:
+			exhausted = true
+			_set_sprint(false)
+	else:
+		_since_sprint += delta
+		if _since_sprint > 0.8:
+			stamina = minf(1.0, stamina + SPRINT_REGEN * delta * (0.6 if exhausted else 1.0))
+		if exhausted and stamina > 0.35:
+			exhausted = false
+
+
 ## A jump scare hits the camera: the view snaps tight and shakes. It is not
 ## the player's own movement, so it never counts as a flinch.
 func scare_punch(strength: float) -> void:
@@ -195,6 +237,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		_g_samples.append([_t, m.relative.x, m.relative.y])
 	elif event is InputEventKey and event.pressed and not event.echo:
 		var k := event as InputEventKey
+		if k.keycode == KEY_W:
+			# a second tap of W, quickly: run
+			if _t - _last_w < 0.32 and can_sprint and mode == "walk" and not exhausted:
+				_set_sprint(true)
+			_last_w = _t
 		if k.keycode == KEY_E and focus and mode != "locked":
 			interacted.emit(String(focus.get_meta("id", "")))
 	elif event is InputEventMouseButton and event.pressed:
@@ -223,7 +270,12 @@ func _physics_process(delta: float) -> void:
 		input.x += 1.0
 	input = input.limit_length(1.0)
 	var dir := (Basis(Vector3.UP, yaw) * Vector3(input.x, 0.0, input.y))
+	_update_stamina(delta, input)
 	var sp := speed * (0.55 if eyes_closed else 1.0)
+	if sprinting:
+		sp = maxf(speed * 1.6, 3.0)
+	elif exhausted:
+		sp *= 0.8
 	var want := Vector2(dir.x, dir.z) * sp
 	var cur := Vector2(velocity.x, velocity.z)
 	cur = cur.move_toward(want, (7.0 if want.length() > cur.length() else 10.0) * delta)
@@ -255,6 +307,8 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector3.ZERO
 	on_stairs = is_on_floor() and get_floor_normal().y < 0.97
 	step_len = 0.44 if on_stairs else 0.62
+	if sprinting:
+		step_len = 0.3
 	if input.length() > 0.1:
 		_step_t += delta
 		if _step_t > step_len:
@@ -301,7 +355,7 @@ func _process(delta: float) -> void:
 	if moving:
 		var ph := clampf(_step_t / step_len, 0.0, 1.0)
 		# on the stairs every stride lifts you a riser: rise, then settle
-		bob = (sin(ph * PI) * 0.032 - 0.012) if on_stairs else sin(ph * PI) * 0.018
+		bob = (sin(ph * PI) * 0.032 - 0.012) if on_stairs else sin(ph * PI) * (0.042 if sprinting else 0.018)
 	# sitting down and getting up ease the eye height
 	_eye_cur = lerpf(_eye_cur, eye_h, 1.0 - exp(-5.0 * delta))
 	head.position.y = _eye_cur + bob + breath * 0.006
@@ -320,8 +374,9 @@ func _process(delta: float) -> void:
 		cam.h_offset = sin(pf * 51.7) * 0.022 * _punch
 		cam.v_offset = sin(pf * 29.3) * 0.022 * _punch
 		cam.fov = 70.0 - 17.0 * minf(1.0, _punch * 1.5)
-	elif cam.fov != 70.0:
-		cam.fov = 70.0
+	else:
+		var want_fov := 76.0 if sprinting else 70.0
+		cam.fov = move_toward(cam.fov, want_fov, delta * 30.0)
 		cam.h_offset = 0.0
 		cam.v_offset = 0.0
 	# angular speed of the view (for flinch detection): the aim, not the shake

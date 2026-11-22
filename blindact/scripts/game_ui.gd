@@ -37,6 +37,13 @@ var _graph_data: PackedFloat32Array = PackedFloat32Array()
 var _graph_thr := -40.0
 var _t := 0.0
 var _rng := RandomNumberGenerator.new()
+var _stam: Control
+var _stam_v := 1.0
+var _stam_run := false
+var _stam_dry := false
+var _stam_a := 0.0
+var _evidence: Label
+var _timer: Label
 
 
 func _ready() -> void:
@@ -80,6 +87,23 @@ func _ready() -> void:
 	_meter.visible = false
 	add_child(_meter)
 	_prompt = _mk_label(22, Color(0.85, 0.82, 0.78, 0.85), 0.35, 0.65, 0.58, 0.63)
+	# breath for running: a thin bar low in the middle, only while it is used
+	_stam = Control.new()
+	_stam.anchor_left = 0.4
+	_stam.anchor_right = 0.6
+	_stam.anchor_top = 0.955
+	_stam.anchor_bottom = 0.975
+	_stam.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_stam.draw.connect(_draw_stamina)
+	add_child(_stam)
+	# what you have found (free time): under the objective
+	_evidence = _mk_label(20, Color(0.8, 0.86, 0.9, 0.92), 0.02, 0.4, 0.62, 0.87)
+	_evidence.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_evidence.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	_evidence.visible = false
+	# how long until he is back
+	_timer = _mk_label(26, Color(0.95, 0.75, 0.6, 0.95), 0.4, 0.6, 0.16, 0.21)
+	_timer.visible = false
 	_fake = _mk_label(56, Color(1.0, 0.15, 0.1), 0.2, 0.8, 0.62, 0.74)
 	_fake.visible = false
 	_title = _mk_label(64, Color(0.86, 0.82, 0.78), 0.1, 0.9, 0.4, 0.55)
@@ -165,6 +189,48 @@ func tell(kind: String, amount: float) -> void:
 
 
 ## The current goal, shown in the corner until changed ("" hides it).
+func stamina(v: float, running: bool, dry: bool) -> void:
+	_stam_v = v
+	_stam_run = running
+	_stam_dry = dry
+	_stam.queue_redraw()
+
+
+func _draw_stamina() -> void:
+	var want := 1.0 if (_stam_run or _stam_v < 0.995) else 0.0
+	_stam_a = move_toward(_stam_a, want, 0.05)
+	if _stam_a <= 0.01:
+		return
+	var r := Rect2(Vector2.ZERO, _stam.size)
+	_stam.draw_rect(r, Color(0.03, 0.04, 0.05, 0.7 * _stam_a))
+	var col := Color(0.62, 0.86, 0.78) if not _stam_dry else Color(0.9, 0.25, 0.2)
+	if _stam_dry:
+		col.a = (0.6 + 0.4 * sin(_t * 9.0)) * _stam_a
+	else:
+		col.a = 0.9 * _stam_a
+	_stam.draw_rect(Rect2(r.position, Vector2(r.size.x * _stam_v, r.size.y)), col)
+	_stam.draw_rect(r, Color(0.7, 0.78, 0.84, 0.5 * _stam_a), false, 1.0)
+
+
+## The evidence checklist for free time: [[key, found], ...]; empty hides it.
+func evidence(items: Array) -> void:
+	if items.is_empty():
+		_evidence.visible = false
+		return
+	var lines: Array[String] = [tr("EVID_TITLE")]
+	for it: Array in items:
+		lines.append(("■ " if bool(it[1]) else "□ ") + tr(String(it[0])))
+	_evidence.text = "\n".join(lines)
+	_evidence.visible = true
+
+
+## A countdown (seconds) at the top; negative hides it.
+func countdown(secs: float) -> void:
+	_timer.visible = secs >= 0.0
+	if secs >= 0.0:
+		_timer.text = tr("TIMER_BACK") % ceili(secs)
+
+
 func objective(key: String) -> void:
 	_objective.text = (tr("OBJ_PREFIX") + tr(key)) if key != "" else ""
 

@@ -42,6 +42,7 @@ var _voice_t := 0.0
 var _voice_hit := 0.0
 var _loud_t := 0.0
 var _eye_t := 0.0
+var _aims: Array = []           # [time, aim] for the last two seconds
 var _phantoms: Array = []        # sounds only you can hear
 
 var _tests: Array = []           # dicts
@@ -202,17 +203,33 @@ func _judge_composure() -> void:
 		add_suspicion(9.0 * _comp_w, "TELL_FROZE")
 
 
-## A blind man does not hold another man's eyes.
+## A blind man does not turn his eyes to another man's and hold them. A
+## gaze that rests straight ahead and happens to meet his is not a tell;
+## moving your eyes onto his face and keeping them there is.
 func _judge_eyes(delta: float) -> void:
+	var aim := player.aim_dir()
+	_aims.append([_t, aim])
+	while _aims.size() > 0 and _t - float(_aims[0][0]) > 2.0:
+		_aims.pop_front()
 	if not watched or his_head == Vector3.INF or exposed_flag or player.eyes_closed or player.view_forced() \
 			or not (player.mode == "walk" or player.mode == "seated"):
-		_eye_t = maxf(0.0, _eye_t - delta)
+		_eye_t = minf(_eye_t, 0.0) if _eye_t < 0.0 else maxf(0.0, _eye_t - delta)
+		return
+	if _eye_t < 0.0:
+		_eye_t += delta       # cooling down after he noticed
 		return
 	var to := his_head - player.eye_pos()
-	if to.length() < 4.0 and player.aim_dir().angle_to(to.normalized()) < deg_to_rad(6.5):
+	var on_him := to.length() < 4.0 and aim.angle_to(to.normalized()) < deg_to_rad(6.5)
+	var moved_onto := false
+	if on_him:
+		for a: Array in _aims:
+			if _t - float(a[0]) > 0.4 and Vector3(a[1]).angle_to(aim) > deg_to_rad(12.0):
+				moved_onto = true
+				break
+	if on_him and (moved_onto or _eye_t > 0.0):
 		_eye_t += delta
 		if _eye_t > 1.4:
-			_eye_t = 0.9
+			_eye_t = -3.0
 			add_suspicion(7.0, "TELL_EYES")
 	else:
 		_eye_t = maxf(0.0, _eye_t - delta * 2.0)

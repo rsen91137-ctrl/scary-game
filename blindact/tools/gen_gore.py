@@ -413,10 +413,75 @@ def decals() -> None:
     save_decal("blood_hand", np.clip(ha * 1.3 + drag * 0.55, 0, 1))
 
 
+# ------------------------------------------------- him, at the door: her blood
+def bloodied_man(src: str, dst: str, seed: int) -> None:
+    """Spattered from the front: face, neck, hands. Still a man, still smiling."""
+    rng = np.random.default_rng(seed)
+    img = load(src)
+    h, w = img.shape[:2]
+    n1 = fbm(h, w, 64, seed + 1)
+    face = blob(h, w, 1760, MID, 250, 360, 0.5)
+    # a fine spray over the face (cast-off from the wire), heavier one side
+    side = blob(h, w, 1760, MID + 110, 220, 260, 0.6)
+    img = blood(img, dots(h, w, rng, face, 3400, 1.0, 4.5) * (0.6 + 0.4 * side))
+    img = blood(img, dots(h, w, rng, side, 900, 3.0, 9.0) * 0.95)
+    # wiped with the back of a hand: a smear across cheek and mouth
+    smear = strokes(h, w, [([(1700, MID - 160), (1760, MID - 40), (1830, MID + 80), (1860, MID + 200)], 70, 40)], 9.0)
+    img = blood(img, smear * sstep(0.35, 0.6, n1 + 0.2) * 0.85)
+    # runs from the hairline and down the neck
+    paths = []
+    for k in range(14):
+        paths.append((run(rng, (rng.uniform(1560, 1640), MID + rng.uniform(-260, 260)), (1.0, rng.normal(0, 0.15)), rng.uniform(80, 260), 0.25), rng.uniform(6, 13), 2))
+    for k in range(22):
+        paths.append((run(rng, (rng.uniform(560, 980), rng.uniform(40, 120)), (rng.normal(0, 0.2), 1.0), rng.uniform(60, 300), 0.3), rng.uniform(5, 12), 2))
+    img = blood(img, strokes(h, w, paths, 1.2))
+    # hands: soaked to the wrist
+    hands = np.zeros((h, w), np.float32)
+    hands[1620:2040, 30:1600] = 1.0
+    img = blood(img, ndi.gaussian_filter(hands, 25) * sstep(0.35, 0.6, fbm(h, w, 40, seed + 4)) * 0.95)
+    save(dst, img)
+
+
+def bloodied_cloth(src: str, dst: str, seed: int) -> None:
+    img = load(src)
+    h, w = img.shape[:2]
+    rng = np.random.default_rng(seed)
+    n = fbm(h, w, 120, seed) * 0.7 + fbm(h, w, 24, seed + 1) * 0.3
+    img = blood(img, sstep(0.66, 0.78, n) * 0.92)
+    img = blood(img, dots(h, w, rng, np.ones((h, w), np.float32), 4200, 1.5, 7.0) * 0.9)
+    save(dst, img)
+
+
+def photo_dead() -> None:
+    """Her photograph, when she looks back: the eyes gone, blood down the face."""
+    im = np.asarray(Image.open(DEC / "photo_her.png").convert("RGBA"), np.float32) / 255.0
+    rgb, a = im[..., :3], im[..., 3:]
+    h, w = rgb.shape[:2]
+    rng = np.random.default_rng(71)
+    for (ex, ey) in ((236, 132), (274, 132)):
+        rgb = paint(rgb, blob(h, w, ex, ey, 11, 8, 0.6), (0.0, 0.0, 0.0), 1.0)
+    paths = []
+    for (ex, ey) in ((236, 138), (274, 138)):
+        for k in range(3):
+            paths.append((run(rng, (ex + rng.uniform(-3, 3), ey), (rng.normal(0, 0.08), 1.0), rng.uniform(60, 190), 0.18, 4.0), rng.uniform(3, 5), 1.5))
+    rgb = blood(rgb, strokes(h, w, paths, 0.8))
+    rgb = paint(rgb, blob(h, w, 255, 166, 9, 14, 0.6), (0.02, 0.0, 0.0), 0.95)
+    out = np.concatenate([rgb, a], -1)
+    Image.fromarray((np.clip(out, 0, 1) * 255 + 0.5).astype(np.uint8)).save(DEC / "photo_her_dead.png", optimize=True)
+    print("wrote decal photo_her_dead")
+
+
 def main() -> None:
     import sys
     if "--decals" in sys.argv:
         decals()
+        return
+    if "--photo" in sys.argv:
+        photo_dead()
+        return
+    if "--manb" in sys.argv:
+        bloodied_man("man_skin_albedo", "manb_skin_albedo", 41)
+        bloodied_cloth("man_cloth_albedo", "manb_cloth_albedo", 42)
         return
     corpse_skin("woman_skin_albedo", "womanc_skin_albedo", 11)
     eyes("woman_eyes_albedo", "womanc_eyes_albedo", "corpse", 12)
@@ -431,7 +496,10 @@ def main() -> None:
     horror_skin("man_skin_albedo", "manm_skin_albedo", 31, pale=(0.66, 0.68, 0.72), flay_side=1)
     eyes("man_eyes_albedo", "manm_eyes_albedo", "horror", 32)
     teeth("man_teeth_albedo", "manm_teeth_albedo")
+    bloodied_man("man_skin_albedo", "manb_skin_albedo", 41)
+    bloodied_cloth("man_cloth_albedo", "manb_cloth_albedo", 42)
     decals()
+    photo_dead()
 
 
 if __name__ == "__main__":

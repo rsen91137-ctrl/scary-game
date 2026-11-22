@@ -111,6 +111,7 @@ var moving := false
 var look_node: Node3D         # whose head he watches (null: his gaze drifts)
 var look_target := Vector3.INF
 var look_while_walking := false
+var follow_height := false    # walk paths change his height (stairs, slopes)
 var undead := false           # not alive, yet its head follows you
 var jaw_open := 0.0           # 0..1, a scream held open
 var lid_wide := 0.0           # 0..1, the lids dragged back
@@ -557,7 +558,7 @@ func _locomote(delta: float) -> void:
 		if d.length() < (0.04 if last else 0.3):
 			_pi += 1
 			if _pi >= _path.size():
-				global_position = Vector3(tgt.x, pos.y, tgt.z)
+				global_position = Vector3(tgt.x, tgt.y if follow_height else pos.y, tgt.z)
 				_end_walk()
 			else:
 				tgt = _path[_pi]
@@ -577,7 +578,12 @@ func _locomote(delta: float) -> void:
 		var pos := global_position
 		var tgt := _path[_pi]
 		var d := Vector3(tgt.x - pos.x, 0.0, tgt.z - pos.z)
-		global_position = pos + d.normalized() * minf(_speed * delta, d.length())
+		var stepv := minf(_speed * delta, d.length())
+		var ny := pos.y
+		if follow_height and absf(tgt.y - pos.y) > 0.001:
+			# up and down stairs: climb in step with the ground covered
+			ny = move_toward(pos.y, tgt.y, absf(tgt.y - pos.y) * stepv / maxf(d.length(), 0.001))
+		global_position = Vector3(pos.x, ny, pos.z) + d.normalized() * stepv
 	# yaw: a critically damped spring, so turns start and finish softly
 	if goal != INF:
 		var err := wrapf(goal - _yaw, -PI, PI)

@@ -67,9 +67,18 @@ var _moon_k := 0
 var _world_ready := false
 var head: CharacterRig          # hers, for the piano
 var _head_held := false
+var _dangle := false             # her head held up by the hair before your eyes
+var _dangle_t := 0.0
+var _dangle_at := Vector3.ZERO   # where it hangs
+var _dangle_face := Vector3.ZERO # the way to you
+var _hank: Array[MeshInstance3D] = []
 var _susp_stage := 0
 var _man_watching := false
 var scares: Scares
+var axe: Node3D
+var _door_lights: Array[Light3D] = []
+var _trail: Array[Vector3] = []
+var _trail_i := 0
 var entering := false           # walking in past her, on the way to the piano
 var _gore_light: SpotLight3D
 signal world_ready
@@ -126,6 +135,9 @@ func _ready() -> void:
 	add_child(woman)
 	woman.visible = false
 	player.avoid = man
+	player.sprint_changed.connect(func(on: bool) -> void:
+		if on and act == "flat" and state.watched and man.visible:
+			state.add_suspicion(16.0, "TELL_RUN"))
 	_setup_audio()
 	_setup_ui()
 	# lightning through the living room window
@@ -164,7 +176,8 @@ func _ready() -> void:
 			_dev_bath()
 		"chase":
 			_act_flat_quick_chase()
-		"head", "face", "pop", "upside", "side", "lunge", "rise", "stare", "sub", "far", "blackout", "monster":
+		"head", "face", "pop", "upside", "side", "lunge", "rise", "stare", "under", "sub", "far", "blackout", "monster", \
+				"strobe", "ceiling", "crossing", "footsteps", "tub", "photo", "window", "shoulder", "phone", "piano_self", "blood":
 			_dev_scare(start)
 		_:
 			_act_home()
@@ -319,6 +332,12 @@ func _make_props() -> void:
 		var ba := man.attach("wrist.R", knife)
 		ba.name = "KnifeHand"
 		knife.position = Vector3(0, 0.08, 0.02)
+	axe = _axe_mesh()
+	axe.visible = false
+	if man.skel:
+		var ab := man.attach("wrist.R", axe)
+		ab.name = "AxeHand"
+		axe.position = Vector3(0.0, 0.07, 0.03)
 	# the coil of piano wire he hands you: a few loose turns, one end sprung out
 	wire = Node3D.new()
 	var wm := StandardMaterial3D.new()
@@ -344,6 +363,42 @@ func _make_props() -> void:
 	wire.add_child(tail)
 	wire.visible = false
 	add_child(wire)
+
+
+## A felling axe: a long ash handle, a wedge head, her blood on the bit.
+func _axe_mesh() -> Node3D:
+	var n := Node3D.new()
+	var wood := StandardMaterial3D.new()
+	wood.albedo_texture = load("res://assets/textures/panel_albedo.png") if ResourceLoader.exists("res://assets/textures/panel_albedo.png") else null
+	wood.albedo_color = Color(0.62, 0.48, 0.34)
+	wood.roughness = 0.55
+	var handle := MeshInstance3D.new()
+	handle.mesh = MeshUtil.tube(PackedVector3Array([Vector3(0, -0.16, 0), Vector3(0, 0.1, 0.004), Vector3(0, 0.36, 0.012), Vector3(0, 0.56, 0.0)]),
+			PackedFloat32Array([0.017, 0.015, 0.014, 0.016]), 10)
+	handle.material_override = wood
+	n.add_child(handle)
+	var steel := StandardMaterial3D.new()
+	steel.albedo_color = Color(0.36, 0.37, 0.38)
+	steel.metallic = 1.0
+	steel.roughness = 0.42
+	var head := MeshInstance3D.new()
+	head.mesh = MeshUtil.extrude(PackedVector2Array([Vector2(-0.035, -0.03), Vector2(0.03, -0.024), Vector2(0.15, -0.06),
+			Vector2(0.17, 0.0), Vector2(0.15, 0.06), Vector2(0.03, 0.024), Vector2(-0.035, 0.03)]), 0.034)
+	head.material_override = steel
+	head.rotation = Vector3(0.0, 0.0, PI * 0.5)
+	head.position = Vector3(0.0, 0.53, -0.017)
+	n.add_child(head)
+	var bl := StandardMaterial3D.new()
+	bl.albedo_color = Color(0.42, 0.01, 0.015)
+	bl.roughness = 0.12
+	bl.metallic_specular = 0.8
+	var bit := MeshInstance3D.new()
+	bit.mesh = MeshUtil.extrude(PackedVector2Array([Vector2(0.1, -0.05), Vector2(0.172, 0.0), Vector2(0.1, 0.05), Vector2(0.12, 0.0)]), 0.036)
+	bit.material_override = bl
+	bit.rotation = Vector3(0.0, 0.0, PI * 0.5)
+	bit.position = Vector3(0.0, 0.53, -0.018)
+	n.add_child(bit)
+	return n
 
 
 ## A chef's knife blade: y along it (tip at the top), z across (spine at 0,
@@ -475,9 +530,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			recording = not recording
 			ui.rec(recording)
 			_sfx("res://assets/audio/rec_click.ogg", -6.0)
-		if k == KEY_E and ui.get("_fake").visible:
-			# the prompt was a lie
-			state.expose("TELL_BAIT")
 
 
 func _set_paused(on: bool) -> void:
@@ -964,17 +1016,54 @@ func _door_scene(g: int) -> void:
 	await wait(2.2)
 	if not _alive(g):
 		return
-	# the door opens; he is there, in the dark of the hallway
+	# a chain, a bolt. The door opens on a lit hall, and on him: his face,
+	# his collar, his hands, red with her blood
+	_sfx3d("res://assets/audio/relay_click.ogg", stairs.knock_pos(), -8.0, 1.5)
+	await wait(0.7)
 	var hinge := stairs.her_hinge()
-	_sfx3d("res://assets/audio/door_creak.ogg", stairs.knock_pos(), -4.0)
-	create_tween().tween_property(hinge, "rotation:y", -1.25, 1.6).set_trans(Tween.TRANS_SINE)
+	man.retexture("manb")
 	man.visible = true
-	man.global_position = stairs.to_global(Vector3(-StairBuilder.W - 0.4, StairBuilder.H * stairs.her_floor, -1.0))
+	man.global_position = stairs.to_global(Vector3(-StairBuilder.W - 0.3, StairBuilder.H * stairs.her_floor, -1.0))
 	man.look_at(Vector3(player.global_position.x, man.global_position.y, player.global_position.z), Vector3.UP, true)
 	man.set_pose("stand", 0.0)
 	man.look_node = player.head
+	_door_light(true)
+	_sfx3d("res://assets/audio/door_creak.ogg", stairs.knock_pos(), -4.0)
+	create_tween().tween_property(hinge, "rotation:y", -1.25, 1.1).set_trans(Tween.TRANS_SINE)
+	player.look_toward(man.bone_pos("head"), 0.6)
+	await wait(0.65)
+	if not _alive(g):
+		return
+	scares.hit(0.9, true, "hit")
+	state.watched = true
+	state.visual("door_blood", man.bone_pos("head"), 4.0, 0.8)
 	ui.show_meter(true)
+	body.stress = 1.0
+	think("THINK_DOOR_BLOOD", 4.0)
 	await wait(1.6)
+	if not _alive(g):
+		return
+	await man_say("MAN_DOOR_0", 2.6)
+	if not _alive(g):
+		return
+	# the moment to choose: play blind and go in, or turn and run
+	player.set_mode("walk", player.yaw)
+	ui.hint("HINT_DOOR_CHOICE", 8.0)
+	var start := player.global_position
+	var ran := false
+	var tc := 0.0
+	while _alive(g) and tc < 7.0:
+		await wait(0.1)
+		tc += 0.1
+		if player.global_position.distance_to(start) > 1.1:
+			ran = true
+			break
+	if not _alive(g):
+		return
+	if ran:
+		_door_run(g)
+		return
+	await man_say("MAN_DOOR_1", 2.6)
 	if not _alive(g):
 		return
 	# he leans in close, his face a hand's breadth from yours, and studies your eyes
@@ -1011,7 +1100,130 @@ func _door_scene(g: int) -> void:
 	await wait(1.5)
 	if not _alive(g):
 		return
+	_door_light(false)
 	_act_flat()
+
+
+## Light at her door: the hall bulb behind him, the landing light on his face.
+func _door_light(on: bool) -> void:
+	for l: Light3D in _door_lights:
+		if is_instance_valid(l):
+			l.queue_free()
+	_door_lights.clear()
+	if not on:
+		return
+	var head := man.global_position + Vector3(0.0, 1.65, 0.0)
+	var to_p := (player.eye_pos() - head)
+	var spill := OmniLight3D.new()
+	spill.light_color = Color(1.0, 0.8, 0.58)
+	spill.light_energy = 1.6
+	spill.omni_range = 3.2
+	spill.shadow_enabled = true
+	add_child(spill)
+	spill.global_position = head - to_p.normalized() * 0.9 + Vector3(0.0, 0.55, 0.0)
+	_door_lights.append(spill)
+	var key := SpotLight3D.new()
+	key.light_color = Color(0.82, 0.9, 1.0)
+	key.light_energy = 2.6
+	key.spot_range = 4.0
+	key.spot_angle = 32.0
+	key.shadow_enabled = false
+	add_child(key)
+	key.global_position = head + to_p * 0.55 + Vector3(0.0, 0.85, 0.0)
+	key.look_at(head, Vector3.UP)
+	_door_lights.append(key)
+
+
+## You ran. He takes the axe from behind the door and comes after you, down
+## the stairs. Out of the building, and he is still behind you.
+func _door_run(g: int) -> void:
+	_gen += 1
+	g = _gen
+	act = "door_chase"
+	_tr("door run")
+	ui.hint_clear()
+	state.end_tests()
+	man.stop()
+	man.follow_height = true
+	man.look_while_walking = true
+	man.set_pose("knife_low", 0.2)
+	axe.visible = true
+	man.jaw_open = 0.7
+	scares.hit(1.0, true, "scream")
+	chase_music.volume_db = -2.0
+	chase_music.play()
+	player.speed = 1.7
+	player.can_sprint = true
+	ui.objective("OBJ_RUN_DOWN")
+	ui.hint("HINT_SPRINT", 7.0)
+	_trail = [man.global_position, player.global_position]
+	_trail_i = 0
+	await wait(0.7)
+	var ground := stairs.to_global(Vector3(-0.68, 0.0, 0.4))
+	while _alive(g):
+		await wait(0.1)
+		var pp := player.global_position
+		if pp.distance_to(_trail[_trail.size() - 1]) > 0.35:
+			_trail.append(pp)
+		# he follows the way you went, step for step
+		while _trail_i < _trail.size() - 1 and man.global_position.distance_to(_trail[_trail_i]) < 0.5:
+			_trail_i += 1
+		var rest := PackedVector3Array()
+		for i in range(_trail_i, _trail.size()):
+			rest.append(_trail[i])
+		if rest.size() > 0 and (not man.moving or fmod(_t, 0.5) < 0.1):
+			man.walk_path(rest, 2.75)
+		if man.global_position.distance_to(pp) < 0.75 and absf(man.global_position.y - pp.y) < 0.8:
+			_axe_kill(g, "TELL_RAN")
+			return
+		# the ground floor: out through the street door
+		if pp.y < ground.y + 0.6 and Vector2(pp.x - ground.x, pp.z - ground.z).length() < 1.6:
+			_out_of_building(g)
+			return
+
+
+## Down at the street door. (The forest chase takes over from here.)
+func _out_of_building(g: int) -> void:
+	if not _alive(g):
+		return
+	_gen += 1
+	act = "end"
+	ui.fade_to(1.0, 0.6)
+	await wait(0.8)
+	chase_music.stop()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	ui.show_end("END_ESCAPE", "END_RAN_D")
+
+
+## The axe. A swing you see coming and cannot stop.
+func _axe_kill(g: int, reason: String) -> void:
+	if not _alive(g):
+		return
+	_gen += 1
+	act = "end"
+	chase_mode = ""
+	player.set_mode("locked")
+	man.stop()
+	var away := (man.global_position - player.global_position) * Vector3(1, 0, 1)
+	if away.length() < 0.05:
+		away = Vector3.FORWARD
+	man.global_position = Vector3(player.global_position.x, man.global_position.y, player.global_position.z) + away.normalized() * 0.62
+	man.look_at(Vector3(player.global_position.x, man.global_position.y, player.global_position.z), Vector3.UP, true)
+	man.set_pose("knife_high", 0.12)
+	man.jaw_open = 1.0
+	player.look_toward(man.bone_pos("head") + Vector3(0, 0.25, 0), 0.15)
+	_face_light(2.0)
+	scares.hit(1.3, true, "scream")
+	await wait(0.55)
+	_sfx("res://assets/audio/stab.ogg", 4.0)
+	_sfx("res://assets/audio/wet_thud.ogg", 2.0)
+	red_flash = 1.0
+	ui.fade_now(1.0)
+	chase_music.stop()
+	await wait(1.6)
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	var why := tr("WHY") + "\n" + tr(state.last_reason if state.last_reason != "" else reason)
+	ui.show_end("END_DEAD", "END_AXE_D", why, state.mic_history, mic.threshold_db())
 
 
 ## Found out on the landing: he pulls you inside. The night ends at the door.
@@ -1614,7 +1826,6 @@ func _fake_charge(g: int) -> void:
 	chase_music.play()
 	_sfx("res://assets/audio/stinger.ogg", 0.0)
 	body.stress = 1.0
-	ui.fake_prompt("BAIT_GRAB" if _rng.randf() < 0.6 else "BAIT_RUN", 2.4)
 	state.watched = true
 	state.visual("charge", man.bone_pos("head"), 4.0, 1.4)
 	var start_pos := player.global_position
@@ -1721,21 +1932,143 @@ func _head_scene(g: int) -> void:
 	await man_say("MAN_10", 2.8)
 	if not _alive(g):
 		return
-	await _throw_head()
+	await _dangle_head(g)
 	if not _alive(g):
 		return
-	# he leans in over your shoulder and watches your hands
-	man.set_pose("lean_in", 0.9)
-	man.walk_path(PackedVector3Array([flat.spots.piano_seat + Vector3(0.3, 0.0, 0.62)]), 0.35)
-	await wait(1.4)
-	if not _alive(g):
-		return
-	think("THINK_HEAD", 3.0)
-	await man_say("MAN_HEAD", 3.4)
-	await wait(1.6)
 	man.set_pose("stand", 0.8)
 	await wait(0.6)
 	await man_walk(flat.spots.piano_seat + Vector3(1.4, 0.0, 0.4), player.global_position)
+
+
+## He lifts her head by the hair into your face. It hangs there, a hand's
+## breadth from your eyes, and turns slowly on its twisted hair: her face
+## comes round to you, goes away, comes round again. Blood runs off the neck
+## onto the keys you are playing. Keep playing.
+func _dangle_head(g: int) -> void:
+	var fwd := Vector3(flat.spots.piano_view).normalized()
+	var left := Vector3.UP.cross(fwd).normalized()
+	var eye := player.eye_pos()
+	_dangle_at = eye + fwd * 0.34 + Vector3(0.0, -0.03, 0.0)
+	_dangle_face = -fwd
+	# he stands at your left shoulder, his right arm out over your hands
+	man.set_pose("offer", 0.5)
+	var stand := Vector3(_dangle_at.x, 0.0, _dangle_at.z) + left * 0.62 + fwd * 0.05
+	man.walk_path(PackedVector3Array([stand]), 0.45, Vector3(_dangle_at.x, 0.0, _dangle_at.z) - left * 0.3)
+	_make_hank()
+	_head_held = false
+	_dangle = true
+	_dangle_t = 0.0
+	head.visible = true
+	_face_light(9.5)
+	scares.hit(0.9, true, ["hit", "quiet", "late", "scream"][_rng.randi() % 4])
+	_sfx3d("res://assets/audio/wet_thud.ogg", _dangle_at, -6.0, 2.0)
+	state.watched = true
+	state.visual("head", _dangle_at, 6.0, 1.3)
+	state.scare_window(9.0, 1.0)
+	var keys: Vector3 = flat.spots.piano_seat + fwd * 0.42 + Vector3(0.0, 0.74, 0.0)
+	var beats := [2.2, 4.4, 6.4]
+	var beat := 0
+	var drip := 0.0
+	while _alive(g) and _dangle_t < 8.6:
+		await get_tree().process_frame
+		drip -= get_process_delta_time()
+		if drip <= 0.0:
+			drip = _rng.randf_range(0.45, 0.9)
+			_sfx3d("res://assets/audio/drip.ogg", keys, -6.0, 1.5)
+			var hit_at := keys + left * _rng.randf_range(-0.12, 0.18) + fwd * _rng.randf_range(-0.06, 0.04)
+			flat.blood_decal(flat, ["blood_splat1", "blood_splat2"][_rng.randi() % 2], hit_at, Vector3(0.09, 0.2, 0.09) * _rng.randf_range(0.7, 1.4), Vector3.UP, _rng.randf() * TAU)
+		if beat < beats.size() and _dangle_t > beats[beat]:
+			match beat:
+				0:
+					# her face comes round to you: the eyes are open
+					scares._play("flash_tick", -4.0)
+					player.heartbeat_kick(0.8)
+					state.composure(2.5, 0.6)
+				1:
+					await man_say("MAN_HEAD", 3.0)
+				2:
+					# she is still bleeding; a whisper from the open mouth
+					_sfx3d("res://assets/audio/voice/whisper_en_3.ogg", _dangle_at, 0.0, 1.0)
+					scares.hit(0.6, false)
+			beat += 1
+	if not _alive(g):
+		_end_dangle(Vector3.INF)
+		return
+	think("THINK_HEAD", 3.0)
+	# he sets her on the piano, against the score, looking at you
+	var rest: Vector3 = flat.spots.piano_seat + Vector3(-0.62, 1.06, 0.0)
+	_end_dangle(rest)
+
+
+func _make_hank() -> void:
+	for m: MeshInstance3D in _hank:
+		if is_instance_valid(m):
+			m.queue_free()
+	_hank.clear()
+	var hm := StandardMaterial3D.new()
+	hm.albedo_color = Color(0.06, 0.045, 0.04)
+	hm.roughness = 0.55
+	var bm := StandardMaterial3D.new()
+	bm.albedo_color = Color(0.3, 0.02, 0.02)
+	bm.roughness = 0.2
+	for i in 7:
+		var m := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = 0.004 + 0.002 * (i % 3)
+		cm.bottom_radius = 0.007 + 0.003 * (i % 2)
+		cm.height = 1.0
+		cm.radial_segments = 5
+		cm.rings = 1
+		m.mesh = cm
+		m.material_override = bm if i == 3 else hm
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(m)
+		_hank.append(m)
+
+
+func _end_dangle(rest: Vector3) -> void:
+	_dangle = false
+	for m: MeshInstance3D in _hank:
+		if is_instance_valid(m):
+			m.queue_free()
+	_hank.clear()
+	if rest != Vector3.INF and head:
+		head.global_position = rest
+		head.rotation = Vector3(-0.2, PI * 0.5, 0.2)
+
+
+## Every frame while he holds it: the head turns on its hair and swings a
+## little; the hair runs up from the crown to his fist.
+func _update_dangle(delta: float) -> void:
+	_dangle_t += delta
+	var t := _dangle_t
+	var fwd := -_dangle_face
+	var left := Vector3.UP.cross(fwd).normalized()
+	# lifted into view in the first half second
+	var lift := smoothstep(0.0, 0.45, t)
+	var at := _dangle_at + Vector3(0.0, -0.5 * (1.0 - lift), 0.0) + left * (0.05 * sin(t * 1.7) + 0.25 * (1.0 - lift)) + fwd * 0.012 * sin(t * 1.15)
+	# the twist: face to you at 0, a slow wind and unwind on the hair
+	var twist := 1.95 * sin(t * 0.62 + 1.2) * minf(1.0, t / 1.2)
+	var base_yaw := atan2(_dangle_face.x, _dangle_face.z)
+	head.global_position = at
+	head.global_rotation = Vector3(0.1 * sin(t * 1.3), base_yaw + twist, 0.07 * sin(t * 1.9 + 0.5))
+	var crown := head.global_transform * Vector3(0.0, 0.085, -0.02)
+	var fist := man.bone_pos("wrist.R") + Vector3(0.0, 0.03, 0.0)
+	if fist.distance_to(crown) > 0.75:
+		fist = crown + Vector3(0.0, 0.32, 0.0)
+	for i in _hank.size():
+		var m: MeshInstance3D = _hank[i]
+		var a := float(i) / float(maxi(1, _hank.size() - 1)) * TAU
+		var root := head.global_transform * Vector3(cos(a) * 0.045, 0.07, -0.02 + sin(a) * 0.04)
+		var tip := fist + Vector3(cos(a) * 0.008, 0.0, sin(a) * 0.008)
+		var d := tip - root
+		var ln := d.length()
+		if ln < 0.01:
+			continue
+		var y := d / ln
+		var x := y.cross(Vector3.FORWARD if absf(y.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT).normalized()
+		var z := x.cross(y)
+		m.global_transform = Transform3D(Basis(x, y * ln, z), (root + tip) * 0.5)
 
 
 ## A faint cold light from where you sit, so a face pushed into yours shows.
@@ -2177,6 +2510,48 @@ func _dev_scare(kind: String) -> void:
 			print("far shown: ", await scares.far())
 		"monster":
 			state.expose("TELL_SCREAM")
+		"strobe", "ceiling", "crossing", "window", "shoulder", "blood", "footsteps", "photo", "tub":
+			# on foot: from the living room door, looking down the hall, or in the bath
+			piano_ui.stop()
+			state.playing_piano = false
+			player.set_mode("walk")
+			var spots := {"strobe": [Vector3(0.0, 0.05, 0.6), 0.0], "crossing": [Vector3(-4.5, 0.05, 2.6), -90.0], "window": [Vector3(-3.2, 0.05, 2.0), 180.0],
+				"photo": [Vector3(0.1, 0.05, 2.6), 160.0], "tub": [Vector3(1.2, 0.05, 4.1), 0.0]}
+			var sp: Array = spots.get(kind, [Vector3(0.0, 0.05, 1.2), 180.0])
+			player.global_position = sp[0]
+			player.yaw = deg_to_rad(float(sp[1]))
+			player.snap_eye()
+			await wait(0.8)
+			var ok: bool = false
+			match kind:
+				"strobe":
+					player.yaw = PI
+					ok = await scares.strobe_approach()
+				"ceiling":
+					ok = await scares.ceiling()
+				"crossing":
+					ok = await scares.crossing()
+				"window":
+					player.yaw = PI
+					await wait(0.3)
+					ok = await scares.window_face()
+				"shoulder":
+					ok = await scares.shoulder()
+				"blood":
+					ok = await scares.blood_ceiling()
+				"footsteps":
+					ok = await scares.footsteps_above()
+				"photo":
+					ok = await scares.photo_turn()
+				"tub":
+					player.yaw = PI
+					get_tree().create_timer(2.0).timeout.connect(func() -> void: player.look_toward(woman.bone_pos("head"), 0.6))
+					ok = await scares.tub_sit()
+			print("dev scare ", kind, " -> ", ok)
+		"phone":
+			print("dev scare phone -> ", await scares.phone_ring())
+		"piano_self":
+			print("dev scare piano_self -> ", await scares.piano_self())
 		_:
 			await scares.pop(kind, false)
 
@@ -2207,6 +2582,9 @@ func _process(delta: float) -> void:
 	if act == "chase" and mic.active:
 		_last_noise = _t
 	ui.mic(mic.level_db, mic.threshold_db(), Settings.mic_this_run and mic.has_input())
+	ui.stamina(player.stamina, player.sprinting, player.exhausted)
+	if player.exhausted:
+		body.stress = maxf(body.stress, 0.85)
 	# the clock
 	if act == "flat":
 		_clock_t += delta
@@ -2234,7 +2612,9 @@ func _process(delta: float) -> void:
 		stairs.window_mat.set_shader_parameter("time_s", _t)
 	_update_cord()
 	_update_suspicion_stage()
-	if _head_held and head:
+	if _dangle and head:
+		_update_dangle(delta)
+	elif _head_held and head:
 		head.global_position = man.bone_pos("wrist.R") + Vector3(0.0, -0.16, 0.0)
 		head.global_rotation = Vector3(0.12 * sin(_t * 1.7), man.global_rotation.y, 0.08 * sin(_t * 1.3))
 	if act == "stairs":

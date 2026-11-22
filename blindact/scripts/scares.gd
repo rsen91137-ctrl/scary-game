@@ -8,7 +8,7 @@ extends Node
 ## the player: a sound, a jerk of the view, feet that stop, hands that fumble.
 
 const STINGERS := 12
-const MAJORS := ["pop", "lunge", "upside", "side", "rise", "stare", "blackout", "turn"]
+const MAJORS := ["pop", "lunge", "upside", "side", "rise", "stare", "blackout", "turn", "strobe", "ceiling", "under", "tub", "window", "shoulder"]
 ## Stingers with no voice in them (scrape, slam, piano), and all of them.
 const HARD: Array[int] = [2, 3, 5, 6, 8, 10, 11]
 ## Places she can stand and be seen from across a room (flat coordinates).
@@ -48,6 +48,20 @@ var _dark := false
 var _streams := {}
 var _running := false
 var _amb_tw: Tween
+var _photo: MeshInstance3D
+var _dust: GPUParticles3D
+
+## Rooms of the flat (x0, x1, z0, z1, floor y): which one the player is in.
+const ROOMS := {
+	"hall": [-0.65, 0.65, 0.0, 6.4, 0.0], "living": [-5.2, -0.65, 0.0, 4.6, 0.0], "bath": [0.65, 3.0, 3.4, 5.8, 0.0],
+	"bedroom": [-2.4, 2.4, 6.4, 9.8, 0.0], "study": [0.65, 4.6, 0.0, 3.4, 0.0], "wc": [-2.4, -0.65, 4.6, 6.4, 0.0],
+	"dining": [-9.8, -5.2, 0.0, 4.6, 0.0], "kitchen": [-9.8, -5.2, 4.6, 9.8, 0.0], "pantry": [-9.8, -7.6, 9.8, 12.0, 0.0],
+	"laundry": [-5.2, -2.4, 6.4, 11.0, 0.0], "passage": [2.4, 3.85, 3.4, 9.8, 0.0], "attic": [-5.2, 3.85, 3.4, 9.8, 2.9],
+}
+## Windows that look out (centre of the glass, outward normal).
+const WINDOWS := [[Vector3(-3.2, 1.55, 4.6), Vector3(0, 0, 1)], [Vector3(1.2, 1.4, 9.8), Vector3(0, 0, 1)],
+	[Vector3(-9.8, 1.55, 1.3), Vector3(-1, 0, 0)], [Vector3(-9.8, 1.55, 3.3), Vector3(-1, 0, 0)],
+	[Vector3(-9.8, 1.6, 7.1), Vector3(-1, 0, 0)], [Vector3(4.6, 1.55, 1.7), Vector3(1, 0, 0)]]
 
 
 func setup(p_game: Node) -> void:
@@ -344,10 +358,28 @@ func pop(kind := "pop", quiet_first := true) -> void:
 			from_y = 0.4
 		"stare":
 			d0 = _rng.randf_range(1.1, 1.7)
+		"under":
+			d0 = 0.42
+			from_y = -0.75
 	var yo := Vector3(0.0, -0.02 if upside else 0.02, 0.0)
 	ghost.jaw_open = 0.1 if kind == "stare" else 1.0
 	ghost.lid_wide = 1.0
 	_show(eye + dir * d0 + off + yo + Vector3(0.0, from_y, 0.0), eye, upside, 1.0, tilt)
+	if kind == "under":
+		# up from under the keys between your hands, slowly, eyes on you
+		game.state.composure(3.0, 0.4)
+		_play("dread_swell", -8.0)
+		var u := 0.0
+		var dur := 2.6 if dev_hold <= 0.0 else 1.0
+		while u < dur and showing:
+			u += get_process_delta_time()
+			var yy := lerpf(from_y, -0.06, smoothstep(0.0, 1.0, u / dur))
+			_put(eye + dir * d0 + Vector3(0.0, yy, 0.0), p.eye_pos(), false, tilt)
+			await get_tree().process_frame
+		from_y = -0.06
+		ghost.jaw_open = 1.0
+		kind = "lunge"
+		d0 = 0.42
 	if kind == "stare":
 		# she only stands there, in arm's reach, and looks. Then she does not.
 		game.state.composure(2.0, 0.5)
@@ -575,6 +607,402 @@ func corpse_rest() -> void:
 	w.lid_wide = 0.6
 
 
+func room_at(pos: Vector3) -> String:
+	var best := ""
+	for r: String in ROOMS:
+		var b: Array = ROOMS[r]
+		if pos.x >= b[0] and pos.x <= b[1] and pos.z >= b[2] and pos.z <= b[3] and pos.y >= float(b[4]) - 0.5:
+			best = r     # the attic is listed last and wins when you are up there
+	return best
+
+
+func _ceil_y(pos: Vector3) -> float:
+	return 5.2 if room_at(pos) == "attic" else 2.72
+
+
+## How far you can see straight ahead (to the first wall), up to `most`.
+func _clear_ahead(eye: Vector3, dir: Vector3, most: float) -> float:
+	var q := PhysicsRayQueryParameters3D.create(eye, eye + dir * most, 1)
+	q.exclude = [game.player.get_rid()]
+	var hit: Dictionary = game.get_world_3d().direct_space_state.intersect_ray(q)
+	return most if hit.is_empty() else eye.distance_to(hit.position)
+
+
+## The lights stutter; in every flash she is nearer.
+func strobe_approach() -> bool:
+	var p: Player = game.player
+	var eye := p.eye_pos()
+	var dir := p.aim_dir()
+	dir.y = 0.0
+	dir = dir.normalized()
+	var reach := _clear_ahead(eye, dir, 7.0) - 0.4
+	if reach < 2.6:
+		return false
+	busy += 1
+	majors += 1
+	_last_major = _t
+	ghost = ghost_m if _rng.randf() < 0.35 else ghost_w
+	ghost.jaw_open = 0.5
+	ghost.lid_wide = 1.0
+	var steps := [reach, reach * 0.66, reach * 0.4, 1.0]
+	_play("relay_click", -2.0)
+	hush(3.5, 2.0)
+	for i in steps.size():
+		lights(false)
+		_hide()
+		await game.wait(_rng.randf_range(0.28, 0.5))
+		_play("relay_click", -6.0 - 2.0 * i)
+		lights(true)
+		var at := eye + dir * float(steps[i]) + Vector3(0.0, -0.06, 0.0)
+		ghost.jaw_open = 0.4 + 0.2 * i
+		_show(at, p.eye_pos(), false, 0.5 + 0.2 * i)
+		game.state.composure(1.5, 0.4)
+		game.player.heartbeat_kick(0.4 + 0.2 * i)
+		await game.wait(_rng.randf_range(0.12, 0.22))
+	lights(false)
+	_hide()
+	await game.wait(0.35)
+	lights(true)
+	busy -= 1
+	await pop("pop", false)
+	return true
+
+
+## A drip on your hair. Above you, her head and arms hang down out of the
+## ceiling. Look up and she is there; don't, and she drops.
+func ceiling() -> bool:
+	var p: Player = game.player
+	if showing:
+		return false
+	busy += 1
+	majors += 1
+	_last_major = _t
+	ghost = ghost_w
+	ghost.jaw_open = 1.0
+	ghost.lid_wide = 1.0
+	var dir := p.aim_dir()
+	dir.y = 0.0
+	dir = dir.normalized()
+	var eye := p.eye_pos()
+	var top := _ceil_y(eye)
+	var at := Vector3(eye.x, top - 0.28, eye.z) + dir * 0.35
+	game._sfx3d("res://assets/audio/drip.ogg", eye + Vector3(0, 0.3, 0), 0.0, 1.0)
+	game.player.heartbeat_kick(0.4)
+	_show(at, eye, true, 0.9)
+	var t := 0.0
+	var looked := false
+	while t < 4.5 and showing:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+		_put(at, p.eye_pos(), true, 0.04 * sin(t * 3.0))
+		if p.aim_dir().angle_to((at - p.eye_pos()).normalized()) < deg_to_rad(28.0):
+			looked = true
+			break
+	if looked:
+		hit(1.0)
+		var u := 0.0
+		while u < 0.8 and showing:
+			await get_tree().process_frame
+			u += get_process_delta_time()
+			_put(at + Vector3(0.0, -0.18 * minf(1.0, u * 4.0), 0.0), p.eye_pos(), true, 0.08 * sin(u * 30.0))
+		_hide()
+		_neg = 1.0
+		busy -= 1
+	else:
+		_hide()
+		busy -= 1
+		await pop("upside", false)
+	return true
+
+
+## Someone crosses the far doorway and is gone.
+func crossing() -> bool:
+	var p: Player = game.player
+	var eye := p.eye_pos()
+	var dir := p.aim_dir()
+	dir.y = 0.0
+	dir = dir.normalized()
+	var reach := _clear_ahead(eye, dir, 9.0)
+	if reach < 3.2:
+		return false
+	var d := clampf(reach - 0.6, 3.0, 8.0)
+	var mid := Vector3(eye.x, 0.0, eye.z) + dir * d
+	if room_at(eye) == "attic":
+		mid.y = 2.95
+	var right := dir.cross(Vector3.UP).normalized()
+	var a := mid - right * 1.3
+	var b := mid + right * 1.3
+	if _rng.randf() < 0.5:
+		var tmp := a
+		a = b
+		b = tmp
+	busy += 1
+	ghost = ghost_m if _rng.randf() < 0.5 else ghost_w
+	ghost.jaw_open = 0.0
+	ghost.lid_wide = 0.0
+	ghost.look_node = null
+	ghost.visible = true
+	showing = true
+	ghost.global_position = a
+	ghost.set_pose("stand", 0.0)
+	ghost.walk_path(PackedVector3Array([b]), 1.25)
+	game.state.visual("crossing", mid + Vector3(0, 1.5, 0), 2.6, 0.5)
+	game.state.composure(2.4, 0.4)
+	_play("dread_swell", -10.0)
+	var t := 0.0
+	while t < 2.6 and ghost.moving:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+	ghost.stop()
+	_hide()
+	busy -= 1
+	count += 1
+	return true
+
+
+## Heavy steps across the floor above you, and dust coming down.
+func footsteps_above() -> bool:
+	var p: Player = game.player
+	var eye := p.eye_pos()
+	if room_at(eye) == "attic":
+		return false
+	var dir := Vector3(_rng.randf_range(-1, 1), 0, _rng.randf_range(-1, 1)).normalized()
+	var start := Vector3(eye.x, 3.2, eye.z) - dir * 2.5
+	for i in 7:
+		var at := start + dir * 0.75 * i
+		game._sfx3d("res://assets/audio/step_%d.ogg" % _rng.randi_range(1, 8), at, 4.0, 3.0)
+		if i == 3:
+			_dust_at(Vector3(eye.x, 2.7, eye.z) + dir * 0.4)
+		await game.wait(0.55)
+	game.state.phantom(start + dir * 2.5, 2.0)
+	count += 1
+	return true
+
+
+func _dust_at(pos: Vector3) -> void:
+	if _dust == null:
+		_dust = GPUParticles3D.new()
+		var pm := ParticleProcessMaterial.new()
+		pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+		pm.emission_box_extents = Vector3(0.5, 0.02, 0.5)
+		pm.gravity = Vector3(0, -0.6, 0)
+		pm.initial_velocity_min = 0.0
+		pm.initial_velocity_max = 0.1
+		pm.scale_min = 0.5
+		pm.scale_max = 1.4
+		_dust.process_material = pm
+		var qm := QuadMesh.new()
+		qm.size = Vector2(0.012, 0.012)
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.75, 0.75, 0.72, 0.8)
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		qm.material = mat
+		_dust.draw_pass_1 = qm
+		_dust.amount = 160
+		_dust.lifetime = 3.5
+		_dust.one_shot = true
+		_dust.explosiveness = 0.7
+		add_child(_dust)
+	_dust.global_position = pos
+	_dust.restart()
+	_dust.emitting = true
+
+
+## In the bath: look away and she sits up; look back and she is staring.
+func tub_sit() -> bool:
+	var p: Player = game.player
+	var w: CharacterRig = game.woman
+	if not w.visible or room_at(p.eye_pos()) != "bath" or w.global_position.distance_to(game.flat.spots.tub) > 1.2:
+		return false
+	var head := w.bone_pos("head")
+	if p.aim_dir().angle_to((head - p.eye_pos()).normalized()) < deg_to_rad(40.0):
+		return false
+	busy += 1
+	majors += 1
+	_last_major = _t
+	var rot0 := w.rotation
+	w.rotation = Vector3(-deg_to_rad(8.0), rot0.y, rot0.z)
+	w.undead = true
+	w.look_node = p.head
+	w.jaw_open = 1.0
+	w.lid_wide = 1.0
+	var t := 0.0
+	var seen := false
+	while t < 7.0:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+		if p.aim_dir().angle_to((w.bone_pos("head") - p.eye_pos()).normalized()) < deg_to_rad(22.0):
+			seen = true
+			break
+	if seen:
+		hit(1.0)
+		game.state.visual("tub", w.bone_pos("head"), 3.0, 0.9)
+		await game.wait(0.9)
+	w.rotation = rot0
+	corpse_rest()
+	busy -= 1
+	return seen
+
+
+## Her photograph in the hall: when you look, she is looking back, and
+## the eyes are gone.
+func photo_turn() -> bool:
+	var p: Player = game.player
+	var at := Vector3(-0.555, 1.55, 4.25)
+	if p.eye_pos().distance_to(at) > 3.4 or room_at(p.eye_pos()) != "hall":
+		return false
+	if _photo == null:
+		_photo = MeshInstance3D.new()
+		var qm := QuadMesh.new()
+		qm.size = Vector2(0.22, 0.28)
+		_photo.mesh = qm
+		var m := StandardMaterial3D.new()
+		var tp := "res://assets/textures/decals/photo_her_dead.png"
+		m.albedo_texture = load(tp) if ResourceLoader.exists(tp) else null
+		m.emission_enabled = true
+		m.emission = Color(0.08, 0.02, 0.02)
+		_photo.material_override = m
+		add_child(_photo)
+		_photo.global_position = at
+		_photo.rotation.y = PI * 0.5
+	_photo.visible = true
+	var t := 0.0
+	var seen := false
+	while t < 8.0:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+		if p.aim_dir().angle_to((at - p.eye_pos()).normalized()) < deg_to_rad(12.0):
+			seen = true
+			break
+	if seen:
+		hit(0.55, true, "quiet")
+		game.state.visual("photo", at, 2.5, 0.5)
+		await game.wait(2.0)
+	_photo.visible = false
+	return seen
+
+
+## Lightning, and for the length of the flash her face is pressed to the
+## outside of the glass, three floors up.
+func window_face() -> bool:
+	var p: Player = game.player
+	var eye := p.eye_pos()
+	var best: Array = []
+	for w: Array in WINDOWS:
+		var c: Vector3 = w[0]
+		var d := eye.distance_to(c)
+		if d < 1.6 or d > 7.5:
+			continue
+		if p.aim_dir().angle_to((c - eye).normalized()) > deg_to_rad(45.0):
+			continue
+		if not game._line_of_sight(eye, c - Vector3(w[1]) * 0.25):
+			continue
+		best = w
+		break
+	if best.is_empty():
+		return false
+	busy += 1
+	majors += 1
+	_last_major = _t
+	ghost = ghost_w
+	ghost.jaw_open = 1.0
+	ghost.lid_wide = 1.0
+	var at: Vector3 = Vector3(best[0]) + Vector3(best[1]) * 0.3 + Vector3(0.0, -0.05, 0.0)
+	game.set("_flash", 1.0)
+	game.set("_thunder_in", 0.5)
+	_show(at, eye, false, 0.7, _rng.randf_range(-0.3, 0.3))
+	hit(0.95, true, "hit" if _rng.randf() < 0.6 else "scream")
+	await game.wait(0.32)
+	_hide()
+	await game.wait(0.12)
+	game.set("_flash", 0.8)
+	_show(at + Vector3(best[1]) * -0.05, p.eye_pos(), false, 0.9)
+	await game.wait(0.12)
+	_hide()
+	busy -= 1
+	return true
+
+
+## A hand on your shoulder and a breath in your ear. Your head turns by
+## itself. Sometimes nothing is there.
+func shoulder() -> bool:
+	var p: Player = game.player
+	if p.mode != "walk" and p.mode != "seated":
+		return false
+	busy += 1
+	var side := 1.0 if _rng.randf() < 0.5 else -1.0
+	var back := -p.aim_dir()
+	back.y = 0.0
+	back = back.normalized()
+	var right := p.aim_dir().cross(Vector3.UP).normalized() * side
+	var ear := p.eye_pos() + right * 0.25 + back * 0.1
+	_play3d("breath_near", ear, 3.0, 1.0)
+	game.player.heartbeat_kick(0.6)
+	await game.wait(0.6)
+	var over := p.eye_pos() + (right * 0.8 + back * 0.6).normalized() * 1.0
+	p.look_toward(over, 0.35)
+	await game.wait(0.38)
+	busy -= 1
+	if _rng.randf() < 0.55:
+		await pop("pop", false)
+	else:
+		game.state.composure(2.0, 0.4)
+	return true
+
+
+## A telephone ringing that nobody else hears.
+func phone_ring() -> bool:
+	var spot := Vector3(-1.0, 0.85, 3.58)
+	if game.flat.spots.has("study_phone") and room_at(game.player.eye_pos()) in ["study", "hall"]:
+		spot = game.flat.spots.study_phone
+	for i in 3:
+		game._sfx3d("res://assets/audio/phone_ring.ogg", spot, -2.0, 3.0)
+		await game.wait(2.6)
+	game.state.phantom(spot, 3.0)
+	count += 1
+	return true
+
+
+## The keys go down under hands you cannot see; her song, wrong.
+func piano_self() -> bool:
+	if not game.state.playing_piano:
+		return false
+	var notes := [36, 37, 43, 44, 55, 56, 61, 62]
+	for i in 8:
+		game.piano.play(notes[_rng.randi() % notes.size()], _rng.randf_range(0.5, 0.95))
+		await game.wait(_rng.randf_range(0.18, 0.42))
+	for n: int in [24, 25, 26, 30, 31, 36]:
+		game.piano.play(n, 1.0)
+	hit(0.6, false)
+	game.state.phantom(game.player.eye_pos() + Vector3(-0.6, -0.3, 0.0), 2.0)
+	return true
+
+
+## Blood seeping through the ceiling over you, faster and faster.
+func blood_ceiling() -> bool:
+	var p: Player = game.player
+	var eye := p.eye_pos()
+	if room_at(eye) == "attic":
+		return false
+	var dir := p.aim_dir()
+	dir.y = 0.0
+	dir = dir.normalized()
+	var at := Vector3(eye.x, 2.745, eye.z) + dir * 0.9
+	var floor_at := Vector3(at.x, 0.0, at.z)
+	var dec: Decal = game.flat.blood_decal(game.flat, "blood_pool", at, Vector3(0.12, 0.2, 0.12), Vector3.DOWN, _rng.randf() * TAU)
+	for i in 9:
+		dec.size = Vector3(0.12 + 0.09 * i, 0.2, 0.12 + 0.09 * i)
+		game._sfx3d("res://assets/audio/drip.ogg", floor_at + Vector3(0, 0.1, 0), -2.0, 2.0)
+		if i % 2 == 0:
+			game.flat.blood_decal(game.flat, "blood_splat%d" % (1 + i % 2), floor_at + Vector3(_rng.randf_range(-0.2, 0.2), 0.0, _rng.randf_range(-0.2, 0.2)), Vector3(0.18, 0.2, 0.18), Vector3.UP, _rng.randf() * TAU)
+		await game.wait(maxf(0.2, 0.8 - 0.07 * i))
+	game.state.composure(2.0, 0.4)
+	count += 1
+	return true
+
+
 # ---------------------------------------------------------------------------
 # the director: never the same night twice
 # ---------------------------------------------------------------------------
@@ -599,19 +1027,33 @@ func run(gen: int) -> void:
 			ctx = "walk"
 		if ctx == "":
 			continue
-		var pool := {"subliminal": 2.2, "phantom": 2.4, "far": 2.2 if ctx == "walk" else 0.5}
+		var room := room_at(p.eye_pos())
+		var pool := {"subliminal": 1.6, "phantom": 1.8, "far": 2.0 if ctx == "walk" else 0.4,
+			"footsteps": 1.4, "phone": 0.8, "blood_ceiling": 1.0, "crossing": 1.8 if ctx == "walk" else 0.6}
 		if not bot:
-			pool["bang"] = 0.7
+			pool["bang"] = 0.6
+		if ctx == "seated":
+			pool["piano_self"] = 1.6
+		if room == "hall":
+			pool["photo"] = 1.6
 		if _t - _last_major > major_gap:
-			pool["pop"] = 3.0
-			pool["upside"] = 2.2
-			pool["side"] = 2.2
-			pool["rise"] = 2.2
-			pool["stare"] = 2.6
-			pool["blackout"] = 2.0
+			pool["pop"] = 2.0
+			pool["upside"] = 1.5
+			pool["side"] = 1.5
+			pool["rise"] = 1.5
+			pool["stare"] = 1.8
+			pool["blackout"] = 1.4
+			pool["strobe"] = 2.4
+			pool["ceiling"] = 2.0
+			pool["window"] = 2.0
+			pool["shoulder"] = 1.6
+			if ctx == "seated":
+				pool["under"] = 2.6
 			if ctx == "walk":
-				pool["lunge"] = 3.2
-				pool["turn"] = 2.2
+				pool["lunge"] = 2.2
+				pool["turn"] = 1.6
+			if room == "bath":
+				pool["tub"] = 4.0
 		for r: String in _recent:
 			if pool.has(r):
 				pool[r] = float(pool[r]) * 0.12
@@ -622,8 +1064,30 @@ func run(gen: int) -> void:
 		var did := true
 		game._tr("scare " + pick + " (" + ctx + ")")
 		match pick:
-			"pop", "upside", "side", "lunge", "rise", "stare":
+			"pop", "upside", "side", "lunge", "rise", "stare", "under":
 				await pop(pick)
+			"strobe":
+				did = await strobe_approach()
+			"ceiling":
+				did = await ceiling()
+			"crossing":
+				did = await crossing()
+			"footsteps":
+				did = await footsteps_above()
+			"tub":
+				did = await tub_sit()
+			"photo":
+				did = await photo_turn()
+			"window":
+				did = await window_face()
+			"shoulder":
+				did = await shoulder()
+			"phone":
+				did = await phone_ring()
+			"piano_self":
+				did = await piano_self()
+			"blood_ceiling":
+				did = await blood_ceiling()
 			"blackout":
 				await blackout()
 			"turn":
