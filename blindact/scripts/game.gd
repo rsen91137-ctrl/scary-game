@@ -667,6 +667,21 @@ func _wind_on(on: bool) -> void:
 		wind = null
 
 
+## On the way to her block: not much, and that is worse. A figure in the
+## fog between the trees; something only you hear; someone crossing behind
+## the parked cars.
+func _outside_scares(g: int) -> void:
+	await wait(_rng.randf_range(18.0, 26.0))
+	if _alive(g) and act == "outside":
+		await scares.far_outdoor()
+	await wait(_rng.randf_range(14.0, 22.0))
+	if _alive(g) and act == "outside":
+		scares.phantom_sound()
+	await wait(_rng.randf_range(16.0, 24.0))
+	if _alive(g) and act == "outside":
+		await scares.crossing()
+
+
 ## A place outside, in world coordinates.
 func ext_spot(name: String) -> Vector3:
 	var s: Vector3 = ext.spots.get(name, Vector3.ZERO)
@@ -818,6 +833,7 @@ func _act_outside() -> void:
 		ext.exit(world.world_env)
 		_act_stairs()
 		return
+	_outside_scares(g)
 	await a.new().run(self, g)
 	if not _alive(g):
 		return

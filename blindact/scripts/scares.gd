@@ -451,10 +451,41 @@ func subliminal() -> void:
 			await game.wait(_rng.randf_range(0.18, 0.4))
 
 
+## Out of doors: ground height under a point (the estate and the forest).
+func _ground(at: Vector3) -> Vector3:
+	var ext: Node3D = game.get("ext")
+	if ext == null or not ext.has_method("height_at"):
+		return at
+	var l := ext.to_local(at)
+	return ext.to_global(Vector3(l.x, float(ext.height_at(l.x, l.z)), l.z))
+
+
+## Out of doors: a pale figure standing between the trees ahead, half lost in
+## the mist. Look at her long enough and she comes for you.
+func far_outdoor() -> bool:
+	var p: Player = game.player
+	if showing:
+		return false
+	var eye := p.eye_pos()
+	var aim := p.aim_dir()
+	aim.y = 0.0
+	aim = aim.normalized()
+	for tries in 10:
+		var ang := _rng.randf_range(-0.6, 0.6)
+		var d := _rng.randf_range(7.0, 14.0)
+		var foot := _ground(Vector3(eye.x, 0.0, eye.z) + aim.rotated(Vector3.UP, ang) * d)
+		var head := foot + Vector3(0.0, _off().y, 0.0)
+		if game._line_of_sight(eye, head):
+			return await _far_at(head)
+	return false
+
+
 ## She is standing across the room. Look straight at her and she may come.
 func far() -> bool:
 	if showing:
 		return false
+	if room_at(game.player.eye_pos()) == "":
+		return await far_outdoor()
 	var p: Player = game.player
 	var eye := p.eye_pos()
 	var aim := p.aim_dir()
@@ -477,9 +508,15 @@ func far() -> bool:
 			best = s
 	if best == Vector3.INF:
 		return false
+	ghost = ghost_w
+	return await _far_at(best + Vector3(0.0, _off().y, 0.0))
+
+
+func _far_at(head_at: Vector3) -> bool:
+	var p: Player = game.player
+	var eye := p.eye_pos()
 	busy += 1
 	ghost = ghost_w
-	var head_at := best + Vector3(0.0, _off().y, 0.0)
 	ghost.jaw_open = 0.3
 	ghost.lid_wide = 1.0
 	_show(head_at, eye, false, 0.55)
@@ -735,15 +772,21 @@ func crossing() -> bool:
 	var mid := Vector3(eye.x, 0.0, eye.z) + dir * d
 	if room_at(eye) == "attic":
 		mid.y = 2.95
+	elif room_at(eye) == "":
+		mid = _ground(mid)
 	var right := dir.cross(Vector3.UP).normalized()
 	var a := mid - right * 1.3
 	var b := mid + right * 1.3
+	if room_at(eye) == "":
+		a = _ground(a)
+		b = _ground(b)
 	if _rng.randf() < 0.5:
 		var tmp := a
 		a = b
 		b = tmp
 	busy += 1
 	ghost = ghost_m if _rng.randf() < 0.5 else ghost_w
+	ghost.follow_height = room_at(eye) == ""
 	ghost.jaw_open = 0.0
 	ghost.lid_wide = 0.0
 	ghost.look_node = null
