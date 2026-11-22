@@ -41,7 +41,7 @@ func run(game: Node, g: int) -> void:
 	await gm.wait(1.4)
 	ui.objective("OBJ_OUTSIDE")
 	ui.hint_hold("HINT_OUTSIDE")
-	var state := {"done": false, "t": 0.0, "hint": true, "strayed": false}
+	var state := {"done": false, "t": 0.0, "hint": true, "strayed": false, "check": 0.0, "at_door": 0.0, "told": {}}
 	var cb := func(id: String) -> void: state.done = state.done or id == "her_unit"
 	player.interacted.connect(cb)
 	var tree := game.get_tree()
@@ -55,6 +55,28 @@ func run(game: Node, g: int) -> void:
 		if bool(state.hint) and float(state.t) > 9.0:
 			ui.hint_clear()
 			state.hint = false
+		# at a door: hers lets him in after a moment on the step; any other
+		# entrance tells him which block and unit it is
+		state.check = float(state.check) - game.get_process_delta_time()
+		if float(state.check) <= 0.0:
+			state.check = 0.25
+			var pp := player.global_position
+			var hd: Vector3 = ext.interactables.her_unit.global_position
+			if Vector2(pp.x - hd.x, pp.z - hd.z).length() < 1.5:
+				state.at_door = float(state.at_door) + 0.25
+				if float(state.at_door) >= 1.0:
+					state.done = true
+			else:
+				state.at_door = 0.0
+			for e: Dictionary in ext._entr:
+				var dp := ext.to_global((e.xf as Transform3D).origin)
+				if Vector2(pp.x - dp.x, pp.z - dp.z).length() < 3.2:
+					var bn := int(e.block)
+					var un := int(e.unit)
+					var key := "%d_%d" % [bn, un]
+					if not (bn == ExteriorBuilder.HER_BLOCK and un == ExteriorBuilder.HER_UNIT) and not (state.told as Dictionary).has(key):
+						(state.told as Dictionary)[key] = true
+						ui.think(tr("THINK_WRONG_UNIT") % [bn, un], 4.0)
 		# wandered off into the trees on the way: remind him where he is going
 		var fk := ext.in_forest(player.global_position)
 		if fk > 0.45 and not bool(state.strayed):

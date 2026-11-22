@@ -54,8 +54,8 @@ func _process(delta: float) -> void:
 				game.set("_clicks", 2)
 		"outside":
 			if _act_t > 4.0 and _once("to_unit") and game.ext:
-				p.global_position = game.ext_spot("her_unit_door") + Vector3(0, 0.1, 0)
-			if _act_t > 5.0 and fmod(_act_t, 1.0) < get_process_delta_time():
+				p.global_position = game.ext_spot("her_door_step" if mode == "door_auto" else "her_unit_door") + Vector3(0, 0.1, 0)
+			if mode != "door_auto" and _act_t > 5.0 and fmod(_act_t, 1.0) < get_process_delta_time():
 				p.interacted.emit("her_unit")
 		"forest":
 			# run the forest path to the road, a little faster than he can
