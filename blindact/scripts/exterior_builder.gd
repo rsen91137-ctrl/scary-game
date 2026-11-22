@@ -154,7 +154,7 @@ func build() -> void:
 	_layout()
 	_heights()
 	_trail_fields()
-	var steps: Array[Callable] = [_terrain, _estate, _blocks_build, _street, _landmarks, _forest, _undergrowth, _road, _nav, _environment, _finish]
+	var steps: Array[Callable] = [_terrain, _estate, _blocks_build, _street, _landmarks, _forest, _undergrowth, _road, _nav, _cc0_dressing, _environment, _finish]
 	for f: Callable in steps:
 		var ts := Time.get_ticks_msec()
 		f.call()
@@ -167,9 +167,76 @@ func build() -> void:
 
 
 # ---------------------------------------------------------------------------
+# CC0 photoscans along the trails (Poly Haven, docs/CREDITS_CC0.md): ferns,
+# nettles, low shrubs, fallen branches and moss tufts where the eye is
+# closest. Plants only: nothing that blocks the way.
+# ---------------------------------------------------------------------------
+func _cc0_dressing() -> void:
+	if not ResourceLoader.exists("res://assets/cc0/models/fern_02/fern_02_1k.gltf"):
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4711
+	var trails: Array[PackedVector3Array] = []
+	if spots.has("chase_start") and spots.has("forest_exit"):
+		trails.append(path(spots.chase_start, spots.forest_exit))
+	for k in range(1, 12):
+		if spots.has("hide_%d" % k) and spots.has("chase_start"):
+			trails.append(path(spots.chase_start, spots["hide_%d" % k]))
+	var kinds := {"fern_02": [], "nettle_plant": [], "shrub_03": [], "shrub_04": [], "dry_branches_medium_01": [], "moss_01": []}
+	var weights := {"fern_02": 0.34, "nettle_plant": 0.16, "shrub_03": 0.12, "shrub_04": 0.12, "dry_branches_medium_01": 0.1, "moss_01": 0.16}
+	var used := {}
+	for tr: PackedVector3Array in trails:
+		for i in range(1, tr.size() - 1):
+			var a := tr[i]
+			var dir := (tr[i + 1] - tr[i - 1])
+			dir.y = 0.0
+			if dir.length() < 0.01:
+				continue
+			dir = dir.normalized()
+			var side := Vector3(-dir.z, 0.0, dir.x)
+			for s: float in [-1.0, 1.0]:
+				if rng.randf() < 0.35:
+					continue
+				var gp := a + side * s * rng.randf_range(1.0, 3.6) + dir * rng.randf_range(-0.8, 0.8)
+				var key := Vector2i(int(gp.x * 1.2), int(gp.z * 1.2))
+				if used.has(key) or in_forest(gp) < 0.15:
+					continue
+				used[key] = true
+				var r := rng.randf()
+				var kind := "fern_02"
+				for k: String in weights:
+					r -= float(weights[k])
+					if r <= 0.0:
+						kind = k
+						break
+				var lp := to_local(gp)
+				var y := height_at(lp.x, lp.z)
+				var sc := rng.randf_range(0.8, 1.35) * (2.2 if kind == "moss_01" else 1.0)
+				var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc, sc, sc))
+				(kinds[kind] as Array).append(Transform3D(b, Vector3(lp.x, y - 0.02, lp.z)))
+	var holder := Node3D.new()
+	holder.name = "CC0Dressing"
+	add_child(holder)
+	var counts := {}
+	for k: String in kinds:
+		counts[k] = (kinds[k] as Array).size()
+		CC0Props.scatter(holder, k, kinds[k], false, 34.0)
+	if OS.get_cmdline_user_args().has("--trace"):
+		print("[ext] cc0 trails=%d %s" % [trails.size(), counts])
+
+
+# ---------------------------------------------------------------------------
 # materials
 # ---------------------------------------------------------------------------
 func _tex(n: String) -> Texture2D:
+	# "cc0:<id>_<map>": a Poly Haven photoscan (assets/cc0/textures, docs/CREDITS_CC0.md)
+	if n.begins_with("cc0:"):
+		var body := n.substr(4)
+		var cut := body.rfind("_")
+		var cp := "res://assets/cc0/textures/%s/%s.jpg" % [body.substr(0, cut), body]
+		if ResourceLoader.exists(cp):
+			return load(cp)
+		n = body
 	for ext: String in [".jpg", ".png"]:
 		var p := "res://assets/textures/forest/%s%s" % [n, ext]
 		if ResourceLoader.exists(p):
@@ -243,11 +310,13 @@ func _leaf(tex: String, tint: Color, height: float, extra := {}) -> ShaderMateri
 func _materials() -> void:
 	var m := _m
 	# trees: each species' bark and needles share tree_height (wind bend)
-	m.bark_pine = _bark("bark_pine", Color(1.0, 0.95, 0.92), 19.0, 0.55)
-	m.bark_spruce = _bark("bark_spruce", Color(0.9, 0.9, 0.9), 17.0, 0.7)
+	m.bark_pine = _bark("cc0:pine_bark", Color(1.0, 0.95, 0.92), 19.0, 0.45)
+	m.bark_pine.set_shader_parameter("uv_scale", Vector2(1.0, 0.62))
+	m.bark_spruce = _bark("cc0:bark_brown_02", Color(0.86, 0.86, 0.88), 17.0, 0.6)
+	m.bark_spruce.set_shader_parameter("uv_scale", Vector2(1.0, 1.0))
 	m.bark_oak = _bark("bark_oak", Color(0.95, 1.0, 0.97), 13.0, 0.8)
 	m.bark_birch = _bark("bark_birch", Color(0.92, 0.96, 0.98), 13.0, 0.35, 1.0)
-	m.bark_dead = _bark("bark_oak", Color(0.78, 0.8, 0.82), 9.0, 0.5)
+	m.bark_dead = _bark("cc0:moss_wood", Color(0.85, 0.85, 0.85), 9.0, 0.4)
 	m.leaf_pine = _leaf("card_pine", Color(0.9, 1.0, 0.95), 19.0, {"translucency": 0.3})
 	m.leaf_spruce = _leaf("card_spruce", Color(0.85, 1.0, 0.95), 17.0, {"translucency": 0.25, "alpha_cut": 0.38})
 	m.leaf_twigs = _leaf("card_twigs", Color(0.95, 0.95, 1.0), 13.0, {"translucency": 0.15, "alpha_cut": 0.32, "flutter_amt": 0.5})
@@ -366,10 +435,10 @@ func _materials() -> void:
 	m.water = _shader(WATER_SHADER)
 	m.water.set_shader_parameter("nmap", _tex("water_normal"))
 	m.terrain = _shader(TERRAIN_SHADER)
-	for pair: Array in [["litter_a", "ground_litter_albedo"], ["litter_n", "ground_litter_normal"], ["litter_r", "ground_litter_rough"],
-			["dirt_a", "ground_dirt_albedo"], ["dirt_n", "ground_dirt_normal"], ["dirt_r", "ground_dirt_rough"],
+	for pair: Array in [["litter_a", "cc0:forest_floor_albedo"], ["litter_n", "cc0:forest_floor_normal"], ["litter_r", "cc0:forest_floor_rough"],
+			["dirt_a", "cc0:stony_dirt_path_albedo"], ["dirt_n", "cc0:stony_dirt_path_normal"], ["dirt_r", "cc0:stony_dirt_path_rough"],
 			["lawn_a", "ground_lawn_albedo"], ["lawn_n", "ground_lawn_normal"], ["moss_a", "moss_albedo"], ["moss_n", "moss_normal"],
-			["mud_a", "ground_mud_albedo"], ["mud_n", "ground_mud_normal"]]:
+			["mud_a", "cc0:mud_forest_albedo"], ["mud_n", "cc0:mud_forest_normal"]]:
 		m.terrain.set_shader_parameter(pair[0], _tex(pair[1]))
 
 
