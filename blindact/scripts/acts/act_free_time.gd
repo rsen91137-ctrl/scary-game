@@ -30,7 +30,13 @@ func run(kind: String, secs: float, items: Array) -> void:
 			await g.man_say("MAN_WC", 2.4)
 			if not alive():
 				return
-			g.man_walk(spot("wc_stand", Vector3(-1.6, 0.0, 5.4)))
+			await g.man_walk(spot("wc_stand", Vector3(-1.6, 0.0, 5.4)))
+			if not alive():
+				return
+			# the WC door shuts; he can hear you through it, not see you
+			_wc_door(false)
+			g.man.visible = false
+			g.hearing_offstage = true
 		"bags":
 			await g.man_say("MAN_BAGS", 3.2)
 			if not alive():
@@ -97,10 +103,25 @@ func run(kind: String, secs: float, items: Array) -> void:
 		g.man.visible = true
 		g.man.global_position = spot("front_inside", Vector3(0.0, 0.0, 0.7))
 		g.front_locked = true
+	if kind == "wc":
+		_wc_door(true)
+		g.man.visible = true
+		g.hearing_offstage = false
 	g.free_time = false
 	g.ui.evidence([])
 	g.ui.objective("")
 	await _his_return(bench)
+
+
+func _wc_door(open: bool) -> void:
+	var h: Node3D = g.flat.doors.get("wc")
+	if h == null:
+		return
+	if not h.has_meta("open_rot_v3"):
+		h.set_meta("open_rot_v3", h.rotation.y)
+	var shut: float = h.get_meta("base_rot", h.rotation.y)
+	g.create_tween().tween_property(h, "rotation:y", float(h.get_meta("open_rot_v3")) if open else shut, 0.6)
+	g._sfx3d("res://assets/audio/door_creak.ogg", h.global_position + Vector3(0, 1.0, 0), -8.0, 2.0)
 
 
 ## He walks back to where he left you. Where he finds you is what he learns.

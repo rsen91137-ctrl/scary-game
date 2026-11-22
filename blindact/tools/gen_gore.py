@@ -443,12 +443,32 @@ def bloodied_man(src: str, dst: str, seed: int) -> None:
 
 
 def bloodied_cloth(src: str, dst: str, seed: int) -> None:
+    """Her blood on his shirt: soaked at the front and the cuffs, sprayed in
+    arcs across it, smeared where he wiped his hands."""
     img = load(src)
     h, w = img.shape[:2]
     rng = np.random.default_rng(seed)
-    n = fbm(h, w, 120, seed) * 0.7 + fbm(h, w, 24, seed + 1) * 0.3
-    img = blood(img, sstep(0.66, 0.78, n) * 0.92)
-    img = blood(img, dots(h, w, rng, np.ones((h, w), np.float32), 4200, 1.5, 7.0) * 0.9)
+    n = fbm(h, w, 140, seed) * 0.7 + fbm(h, w, 24, seed + 1) * 0.3
+    img = blood(img, sstep(0.6, 0.74, n) * 0.95)
+    # cast-off: arcs of elongated drops
+    paths = []
+    for k in range(18):
+        a0 = rng.uniform(0, 6.283)
+        cx, cy = rng.uniform(0, w), rng.uniform(0, h)
+        r = rng.uniform(120, 420)
+        for j in range(rng.integers(6, 16)):
+            a = a0 + j * rng.uniform(0.05, 0.1)
+            x, y = cx + np.cos(a) * r, cy + np.sin(a) * r
+            ln = rng.uniform(8, 30)
+            paths.append(([(x, y), (x + np.cos(a + 1.57) * ln, y + np.sin(a + 1.57) * ln)], rng.uniform(5, 11), 2))
+    img = blood(img, strokes(h, w, paths, 1.0) * 0.95)
+    # smears: dragged hand-widths
+    sm = []
+    for k in range(9):
+        x, y = rng.uniform(0, w), rng.uniform(0, h)
+        sm.append(([(x, y), (x + rng.uniform(-160, 160), y + rng.uniform(60, 260))], rng.uniform(40, 80), rng.uniform(10, 30)))
+    img = blood(img, strokes(h, w, sm, 6.0) * sstep(0.3, 0.6, fbm(h, w, 30, seed + 3) + 0.2) * 0.8)
+    img = blood(img, dots(h, w, rng, np.ones((h, w), np.float32), 900, 1.0, 4.0) * 0.85)
     save(dst, img)
 
 

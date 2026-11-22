@@ -76,6 +76,7 @@ var _susp_stage := 0
 var _man_watching := false
 var scares: Scares
 var axe: Node3D
+var hearing_offstage := false   # out of sight (behind the WC door) but not out of earshot
 var free_time := false          # he is away (WC, rubbish, asleep): you may search
 var front_locked := false
 var police_called := false      # the line left open, or the neighbour understood
@@ -3201,7 +3202,7 @@ func _process(delta: float) -> void:
 	ui.prompt(tr(String(f.get_meta("interact"))) if f and act != "end" else "")
 	if act == "flat" or act == "stairs":
 		state.watched = man.visible and _he_sees_you()
-	state.listening = man.visible and (act == "flat" or act == "stairs")
+	state.listening = (man.visible or hearing_offstage) and (act == "flat" or act == "stairs")
 	state.his_head = man.bone_pos("head") if man.visible and _world_ready else Vector3.INF
 	if act == "chase" and mic.active:
 		_last_noise = _t

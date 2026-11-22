@@ -52,6 +52,28 @@ func _process(delta: float) -> void:
 					p.interacted.emit(id)
 			if _act_t > 10.0:
 				game.set("_clicks", 2)
+		"outside":
+			if _act_t > 4.0 and _once("to_unit") and game.ext:
+				p.global_position = game.ext_spot("her_unit_door") + Vector3(0, 0.1, 0)
+			if _act_t > 5.0 and fmod(_act_t, 1.0) < get_process_delta_time():
+				p.interacted.emit("her_unit")
+		"forest":
+			# run the forest path to the road, a little faster than he can
+			if _once("fpath"):
+				set_meta("fpts", game.ext.path(p.global_position, game.ext_spot("forest_exit")))
+				set_meta("fi", 0)
+				set_meta("fu", 0.0)
+			var fp: PackedVector3Array = get_meta("fpts")
+			var fi: int = get_meta("fi")
+			if fi < fp.size() - 1:
+				var fu: float = float(get_meta("fu")) + delta * 3.2 / maxf(0.01, fp[fi].distance_to(fp[fi + 1]))
+				if fu >= 1.0:
+					fu = 0.0
+					fi += 1
+					set_meta("fi", fi)
+				set_meta("fu", fu)
+				if fi < fp.size() - 1:
+					p.global_position = fp[fi].lerp(fp[fi + 1], fu) + Vector3(0, 0.1, 0)
 		"door_chase":
 			# run down the stairs, a little faster than he can follow
 			var H := StairBuilder.H
