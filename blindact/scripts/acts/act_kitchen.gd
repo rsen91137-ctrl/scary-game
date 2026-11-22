@@ -9,6 +9,8 @@ var _boil: AudioStreamPlayer3D
 
 
 func run() -> void:
+	if not has_spot("stove") or not g.flat.interactables.has("plates"):
+		return
 	var stove := spot("stove", Vector3(-7.6, 0.0, 8.6))
 	g._tr("kitchen")
 	await g.man_say("MAN_K_CALL", 3.0)

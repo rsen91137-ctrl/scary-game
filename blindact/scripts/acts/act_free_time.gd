@@ -53,6 +53,14 @@ func run(kind: String, secs: float, items: Array) -> void:
 			pass
 	if not alive():
 		return
+	# only what can actually be found here
+	var where := {"policy": "files", "receipt": "desk", "phone": "study_phone", "diary": "diary", "photos": "camera",
+		"canes": "canes", "freezer": "freezer", "ids": "safe", "key": "safe"}
+	var findable := []
+	for k: String in items:
+		if not where.has(k) or g.flat.interactables.has(where[k]):
+			findable.append(k)
+	items = findable
 	# alone
 	if g.player.mode == "seated":
 		g._stand_up()

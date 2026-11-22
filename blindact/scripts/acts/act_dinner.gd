@@ -17,6 +17,8 @@ var _seat_yaw := 0.0
 
 
 func run() -> void:
+	if not has_spot("dinner_seat"):
+		return
 	var seat := spot("dinner_seat", Vector3(-7.0, 0.0, 2.95))
 	var look := spot("dinner_look", seat + Vector3(0.0, 0.9, -1.2))
 	var his := spot("his_seat", Vector3(-9.05, 0.0, 2.0))

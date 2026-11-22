@@ -11,6 +11,8 @@ var _hour := 0
 
 
 func run() -> void:
+	if not has_spot("attic_bed"):
+		return
 	var p: Player = g.player
 	g._tr("night")
 	g.scares.busy += 1
