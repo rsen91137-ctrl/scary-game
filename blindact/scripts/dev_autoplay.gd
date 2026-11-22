@@ -59,6 +59,8 @@ func _process(delta: float) -> void:
 				p.interacted.emit("her_unit")
 		"forest":
 			# run the forest path to the road, a little faster than he can
+			if _act_t < 0.8:
+				return
 			if _once("fpath"):
 				set_meta("fpts", game.ext.path(p.global_position, game.ext_spot("forest_exit")))
 				set_meta("fi", 0)

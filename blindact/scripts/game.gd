@@ -466,7 +466,11 @@ func _blade_mesh() -> ArrayMesh:
 # night changes course — he knows — older sequences stop at the next await)
 # ---------------------------------------------------------------------------
 func _tr(msg: String) -> void:
-	if OS.get_cmdline_user_args().has("--trace") or OS.get_cmdline_user_args().has("--autoplay"):
+	var on := false
+	for a: String in OS.get_cmdline_user_args():
+		if a == "--trace" or a.begins_with("--autoplay"):
+			on = true
+	if on:
 		print("[night] t=%.1f %s  susp=%.0f frame=%.0f  %s" % [_t, msg, state.suspicion, state.frame, state.log_lines])
 
 
@@ -645,6 +649,7 @@ func _build_exterior() -> void:
 	add_child(ext)
 	ext.position = Vector3(400.0, 0.0, 0.0)
 	await ext.build()
+	ext.exposure_boost = 1.6       # he wears the dark glasses out there too
 	_ext_ready = true
 
 
@@ -824,23 +829,13 @@ func _act_outside() -> void:
 	_gen += 1
 	var g := _gen
 	act = "outside"
-	ext.enter(world.world_env)
-	_wind_on(true)
 	sunglasses_target = 0.8
+	sunglasses = 0.8
 	player.cane_enabled = true
-	var a := load("res://scripts/acts/act_outside.gd")
-	if a == null:
-		ext.exit(world.world_env)
-		_act_stairs()
-		return
 	_outside_scares(g)
-	await a.new().run(self, g)
+	await ActOutside.new().run(self, g)
 	if not _alive(g):
 		return
-	ui.fade_to(1.0, 0.8)
-	await wait(1.0)
-	_wind_on(false)
-	ext.exit(world.world_env)
 	_act_stairs()
 
 
@@ -1303,10 +1298,9 @@ func _out_of_building(g: int) -> void:
 	ui.fade_to(1.0, 0.25)
 	await wait(0.3)
 	ext.enter(world.world_env)
-	_wind_on(true)
+	amb.stop()
 	player.global_position = ext_spot("chase_start") + Vector3(0.0, 0.1, 0.0)
-	var away := ext_spot("forest_gate") - player.global_position
-	player.yaw = atan2(-away.x, -away.z)
+	player.yaw = float(ext.spot_yaw.get("chase_start", 0.0))
 	player.set_mode("walk", player.yaw)
 	player.snap_eye()
 	man.visible = true
@@ -1318,7 +1312,7 @@ func _out_of_building(g: int) -> void:
 	man.lid_wide = 1.0
 	man.set_pose("knife_low", 0.0)
 	axe.visible = true
-	man.global_position = ext_spot("her_unit_door")
+	man.global_position = ext_spot("her_door_step") if ext.spots.has("her_door_step") else ext_spot("her_unit_door")
 	ui.fade_to(0.0, 0.4)
 	ui.objective("OBJ_FOREST")
 	ui.hint("HINT_FOREST", 8.0)
@@ -1326,40 +1320,32 @@ func _out_of_building(g: int) -> void:
 	_forest_loop(g)
 
 
-var _fhides: Array[Area3D] = []
 
 ## He hunts you through the trees by sight and by sound. Hide, catch your
 ## breath, keep moving; the road is on the far side.
 func _forest_loop(g: int) -> void:
-	for a: Area3D in _fhides:
-		if is_instance_valid(a):
-			a.queue_free()
-	_fhides.clear()
+	ext.set_hides_active(true)
 	var hides: Array[Vector3] = []
-	for k: String in ext.spots:
-		if k.begins_with("hide_"):
-			var hp := ext_spot(k)
-			hides.append(hp)
-			var a := Area3D.new()
-			a.collision_layer = 2
-			a.collision_mask = 0
-			var cs := CollisionShape3D.new()
-			var bs := BoxShape3D.new()
-			bs.size = Vector3(1.4, 1.6, 1.4)
-			cs.shape = bs
-			a.add_child(cs)
-			a.set_meta("interact", "ACT_HIDE")
-			a.set_meta("id", "fhide_%d" % (hides.size() - 1))
-			add_child(a)
-			a.global_position = hp + Vector3(0, 0.8, 0)
-			_fhides.append(a)
+	for k in range(1, 20):
+		if ext.spots.has("hide_%d" % k):
+			hides.append(ext_spot("hide_%d" % k))
 	var exit := ext_spot("forest_exit")
 	var last_seen := player.global_position
 	var repath := 0.0
 	var lost := 0.0
 	var search := Vector3.INF
 	var scare_in := _rng.randf_range(14.0, 24.0)
-	await wait(1.0)
+	# he comes out of the door a moment after you, the axe already up
+	man.visible = false
+	await wait(1.8)
+	if not _alive(g):
+		return
+	man.visible = true
+	_sfx3d("res://assets/audio/door_slam.ogg", man.global_position + Vector3(0, 1.2, 0), 2.0, 6.0)
+	var growl := "res://assets/cc0/audio/liminal_horror_sfx/growl_mid_%d.ogg" % _rng.randi_range(1, 2)
+	if ResourceLoader.exists(growl):
+		_sfx3d(growl, man.global_position + Vector3(0, 1.6, 0), 0.0, 6.0)
+	var growl_t := 4.0
 	while _alive(g) and act == "forest":
 		await get_tree().process_frame
 		var dt := get_process_delta_time()
@@ -1369,14 +1355,22 @@ func _forest_loop(g: int) -> void:
 		var moving := Vector2(player.velocity.x, player.velocity.z).length() > 0.3
 		var sees := hidden_in == "" and d < 18.0 and _line_of_sight(man.bone_pos("head"), player.eye_pos())
 		var heard := (player.sprinting and d < 15.0) or (_t - _last_noise < 0.6 and d < 13.0) or (moving and d < 5.0) or (player.exhausted and d < 7.0)
-		var spd := 2.0 * float(Difficulty.get_value("chase_speed"))
+		var cs := float(Difficulty.get_value("chase_speed"))
+		var spd := 1.7 * cs
 		var target := last_seen
 		if sees or heard:
 			last_seen = pp
 			lost = 0.0
 			search = Vector3.INF
 			target = pp
-			spd = 2.75 * float(Difficulty.get_value("chase_speed"))
+			spd = (2.45 if sees else 2.2) * cs
+		# a growl now and then, so you know where he is (and he knows it)
+		growl_t -= dt
+		if growl_t <= 0.0:
+			growl_t = _rng.randf_range(5.0, 11.0)
+			var gp := "res://assets/cc0/audio/liminal_horror_sfx/growl_%s.ogg" % ["long_1", "long_2", "long_3", "long_4", "mid_1", "mid_2", "short"][_rng.randi() % 7]
+			if ResourceLoader.exists(gp):
+				_sfx3d(gp, man.bone_pos("head"), -2.0, 5.0)
 		else:
 			lost += dt
 			if Vector2(mp.x - last_seen.x, mp.z - last_seen.z).length() < 1.2:
@@ -1406,7 +1400,8 @@ func _forest_loop(g: int) -> void:
 		if hidden_in == "" and d < 0.85:
 			_axe_kill(g, "TELL_RAN")
 			return
-		if pp.distance_to(exit) < 4.0:
+		if ext.at_road(pp) or pp.distance_to(exit) < 4.0:
+			ext.set_hides_active(false)
 			_escape("END_FOREST", "END_FOREST_D")
 			return
 		scare_in -= dt
@@ -1419,6 +1414,7 @@ func _forest_loop(g: int) -> void:
 
 
 func _escape(title: String, desc: String) -> void:
+	_tr("escape " + title)
 	_gen += 1
 	act = "end"
 	chase_music.stop()
@@ -1623,6 +1619,7 @@ func hush_room(secs: float) -> void:
 func _axe_kill(g: int, reason: String) -> void:
 	if not _alive(g):
 		return
+	_tr("axe kill (%s) d=%.2f" % [reason, man.global_position.distance_to(player.global_position)])
 	_gen += 1
 	act = "end"
 	chase_mode = ""
@@ -2939,18 +2936,17 @@ func _on_interact(id: String) -> void:
 	match id:
 		"money":
 			state.expose("TELL_GREED")
-		_ when id.begins_with("fhide_"):
-			if act == "forest":
-				var a: Area3D = _fhides[int(id.substr(6))]
-				if hidden_in == "":
-					hidden_in = id
-					player.global_position = a.global_position - Vector3(0, 0.8, 0)
-					player.set_mode("hidden_low", player.yaw)
-					ui.hint("ACT_LEAVE_HIDE", 3.0)
-				else:
-					hidden_in = ""
-					player.set_mode("walk", player.yaw)
-					player.unstick()
+		_ when act == "forest" and id.begins_with("hide_") and id.substr(5).is_valid_int():
+			if hidden_in == "":
+				hidden_in = id
+				player.global_position = ext_spot(id) + Vector3(0, 0.05, 0)
+				player.set_mode("hidden_low", float(ext.spot_yaw.get(id, player.yaw)))
+				ui.hint("ACT_LEAVE_HIDE", 3.0)
+			elif hidden_in == id:
+				hidden_in = ""
+				player.global_position = ext_spot(id + "_front") + Vector3(0, 0.05, 0) if ext.spots.has(id + "_front") else player.global_position
+				player.set_mode("walk", player.yaw)
+				player.unstick()
 		"wardrobe", "hide_garret", "hide_dining", "hide_pantry":
 			if act == "chase" or (id == "wardrobe" and free_time):
 				_toggle_hide(id)
@@ -3098,6 +3094,8 @@ func _on_tap(pos: Vector3) -> void:
 
 func _on_step(pos: Vector3) -> void:
 	var path := "res://assets/audio/step_%d.ogg" % _rng.randi_range(1, 8)
+	if (act == "outside" or act == "forest") and ext:
+		path = ext.step_sound(pos)
 	var vol := -2.5 if player.on_stairs else -6.0
 	if act == "chase":
 		vol = -1.0
