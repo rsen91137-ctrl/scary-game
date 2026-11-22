@@ -240,7 +240,7 @@ func _setup_ui() -> void:
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	post_mat = ShaderMaterial.new()
 	post_mat.shader = load("res://shaders/screen_fx.gdshader")
-	post_mat.set_shader_parameter("cold", 1.0)
+	post_mat.set_shader_parameter("cold", 0.5)
 	rect.material = post_mat
 	fx.add_child(rect)
 	var l := CanvasLayer.new()
@@ -1273,6 +1273,7 @@ func _out_of_building(g: int) -> void:
 	man.stop()
 	man.follow_height = true
 	man.retexture("manm")
+	man.monsterize(true)
 	man.jaw_open = 0.8
 	man.lid_wide = 1.0
 	man.set_pose("knife_low", 0.0)
@@ -1541,6 +1542,7 @@ func place_head_on_stand(at: Vector3, eye: Vector3) -> void:
 
 
 var _cold_saved := 1.0
+var _rain := 0.0
 ## Candlelight: the grade lets the warmth through while you are at table.
 func dinner_mood(on: bool) -> void:
 	if on:
@@ -2356,7 +2358,8 @@ func _dangle_head(g: int) -> void:
 	_dangle_face = -fwd
 	# he stands at your left shoulder, his right arm out over your hands
 	man.set_pose("offer", 0.5)
-	var stand := Vector3(_dangle_at.x, 0.0, _dangle_at.z) + left * 0.62 + fwd * 0.05
+	man.grip_override = 1.0
+	var stand := Vector3(_dangle_at.x, 0.0, _dangle_at.z) + left * 0.55 + fwd * 0.18
 	man.walk_path(PackedVector3Array([stand]), 0.45, Vector3(_dangle_at.x, 0.0, _dangle_at.z) - left * 0.3)
 	_make_hank()
 	_head_held = false
@@ -2410,21 +2413,21 @@ func _make_hank() -> void:
 			m.queue_free()
 	_hank.clear()
 	var hm := StandardMaterial3D.new()
-	hm.albedo_color = Color(0.06, 0.045, 0.04)
+	hm.albedo_color = Color(0.11, 0.075, 0.055)
 	hm.roughness = 0.55
 	var bm := StandardMaterial3D.new()
 	bm.albedo_color = Color(0.3, 0.02, 0.02)
 	bm.roughness = 0.2
-	for i in 7:
+	for i in 18:
 		var m := MeshInstance3D.new()
 		var cm := CylinderMesh.new()
-		cm.top_radius = 0.004 + 0.002 * (i % 3)
-		cm.bottom_radius = 0.007 + 0.003 * (i % 2)
+		cm.top_radius = 0.0009 + 0.0005 * (i % 3)
+		cm.bottom_radius = 0.0018 + 0.0008 * (i % 2)
 		cm.height = 1.0
 		cm.radial_segments = 5
 		cm.rings = 1
 		m.mesh = cm
-		m.material_override = bm if i == 3 else hm
+		m.material_override = bm if i % 6 == 3 else hm
 		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(m)
 		_hank.append(m)
@@ -2432,6 +2435,7 @@ func _make_hank() -> void:
 
 func _end_dangle(rest: Vector3) -> void:
 	_dangle = false
+	man.grip_override = -1.0
 	for m: MeshInstance3D in _hank:
 		if is_instance_valid(m):
 			m.queue_free()
@@ -2441,30 +2445,35 @@ func _end_dangle(rest: Vector3) -> void:
 		head.rotation = Vector3(-0.2, PI * 0.5, 0.2)
 
 
-## Every frame while he holds it: the head turns on its hair and swings a
-## little; the hair runs up from the crown to his fist.
+## Every frame while he holds it: her head hangs under his fist on a short
+## twist of hair, turning slowly and swinging a little; he shifts his feet so
+## his fist stays just above and in front of your face.
 func _update_dangle(delta: float) -> void:
 	_dangle_t += delta
 	var t := _dangle_t
 	var fwd := -_dangle_face
 	var left := Vector3.UP.cross(fwd).normalized()
-	# lifted into view in the first half second
-	var lift := smoothstep(0.0, 0.45, t)
-	var at := _dangle_at + Vector3(0.0, -0.5 * (1.0 - lift), 0.0) + left * (0.05 * sin(t * 1.7) + 0.25 * (1.0 - lift)) + fwd * 0.012 * sin(t * 1.15)
+	var wrist := man.bone_pos("wrist.R")
+	var elbow := man.bone_pos("lowerarm01.R")
+	var fist := wrist + (wrist - elbow).normalized() * 0.07
+	var want := _dangle_at + Vector3(0.0, 0.27, 0.0)
+	var err := want - fist
+	err.y = 0.0
+	if err.length() > 0.02:
+		man.global_position += err * clampf(delta * 3.5, 0.0, 1.0)
 	# the twist: face to you at 0, a slow wind and unwind on the hair
-	var twist := 1.95 * sin(t * 0.62 + 1.2) * minf(1.0, t / 1.2)
+	var twist := 1.9 * sin(t * 0.62 + 1.2) * minf(1.0, t / 1.2)
 	var base_yaw := atan2(_dangle_face.x, _dangle_face.z)
-	head.global_position = at
+	var sway := left * 0.035 * sin(t * 1.7) + fwd * 0.012 * sin(t * 1.15)
+	var crown := fist + Vector3(0.0, -0.17, 0.0) + sway
 	head.global_rotation = Vector3(0.1 * sin(t * 1.3), base_yaw + twist, 0.07 * sin(t * 1.9 + 0.5))
-	var crown := head.global_transform * Vector3(0.0, 0.085, -0.02)
-	var fist := man.bone_pos("wrist.R") + Vector3(0.0, 0.03, 0.0)
-	if fist.distance_to(crown) > 0.75:
-		fist = crown + Vector3(0.0, 0.32, 0.0)
+	head.global_position = crown - head.global_basis * Vector3(0.0, 0.085, -0.02)
 	for i in _hank.size():
 		var m: MeshInstance3D = _hank[i]
 		var a := float(i) / float(maxi(1, _hank.size() - 1)) * TAU
-		var root := head.global_transform * Vector3(cos(a) * 0.045, 0.07, -0.02 + sin(a) * 0.04)
-		var tip := fist + Vector3(cos(a) * 0.008, 0.0, sin(a) * 0.008)
+		var rr := 0.035 + 0.025 * float(i % 3) / 2.0
+		var root := head.global_transform * Vector3(cos(a) * rr, 0.07 - 0.01 * float(i % 3), -0.02 + sin(a) * rr)
+		var tip := fist + Vector3(cos(a) * 0.008, -0.01, sin(a) * 0.008)
 		var d := tip - root
 		var ln := d.length()
 		if ln < 0.01:
@@ -2725,6 +2734,7 @@ func _on_exposed(reason: String) -> void:
 	man.stop()
 	# what your fear makes of him now
 	man.retexture("manm")
+	man.monsterize(true)
 	man.jaw_open = 0.85
 	man.lid_wide = 1.0
 	scares.hit(1.0)
@@ -3208,6 +3218,8 @@ func _process(delta: float) -> void:
 		if flat.clock_pendulum:
 			flat.clock_pendulum.rotation.z = sin(_t * PI) * 0.12
 	if act == "flat" or act == "chase" or act == "home":
+		if not bool(get_meta("storm", false)) and act == "flat":
+			_next_lightning = maxf(_next_lightning, 8.0)
 		_next_lightning -= delta
 		if _next_lightning <= 0.0:
 			_next_lightning = _rng.randf_range(16.0, 38.0)
@@ -3221,6 +3233,9 @@ func _process(delta: float) -> void:
 	var fl := _flash * (0.55 + 0.45 * sin(_t * 70.0)) if _flash > 0.35 else _flash
 	lightning.light_energy = fl * 14.0
 	flat.window_mat.set_shader_parameter("flash", fl)
+	var rain_to := 1.0 if bool(get_meta("storm", false)) else 0.0
+	_rain = move_toward(_rain, rain_to, delta * 0.08)
+	flat.window_mat.set_shader_parameter("rain", _rain)
 	flat.window_mat.set_shader_parameter("time_s", _t)
 	if stairs.window_mat:
 		stairs.window_mat.set_shader_parameter("time_s", _t)

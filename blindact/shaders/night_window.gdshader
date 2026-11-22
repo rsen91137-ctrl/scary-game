@@ -7,6 +7,7 @@ render_mode unshaded, cull_disabled;
 
 uniform float flash = 0.0;
 uniform float time_s = 0.0;
+uniform float rain = 1.0;                  // 0: a clear misty night with a moon, 1: the storm
 
 float hash(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -25,8 +26,11 @@ void fragment() {
 	vec2 uv = UV;
 	// rain on the glass refracts the view a little
 	float streak = vnoise(vec2(uv.x * 60.0, uv.y * 3.0 - time_s * 1.4));
-	vec2 ruv = uv + vec2(0.0, (streak - 0.5) * 0.02);
+	vec2 ruv = uv + vec2(0.0, (streak - 0.5) * 0.02 * rain);
 	vec3 sky = mix(vec3(0.012, 0.016, 0.03), vec3(0.03, 0.035, 0.05), ruv.y);
+	// before the storm: mist lit by the moon, the moon itself high on the left
+	float md = length((ruv - vec2(0.24, 0.9)) * vec2(1.4, 1.0));
+	sky += (vec3(0.05, 0.065, 0.09) * smoothstep(1.0, 0.0, ruv.y * 0.6 + md * 0.5) + vec3(0.6, 0.66, 0.72) * smoothstep(0.06, 0.045, md)) * (1.0 - rain);
 	// the block across the yard
 	float bld = step(ruv.y, 0.78) * step(0.04, ruv.x) * step(ruv.x, 0.96);
 	vec3 col = mix(sky, vec3(0.006, 0.006, 0.008), bld);
@@ -38,8 +42,9 @@ void fragment() {
 	col += wc * win * lit * (0.25 + 0.1 * sin(time_s * 0.3 + hash(cell) * 6.0));
 	// rain streaks and drops on the glass
 	float drops = smoothstep(0.82, 0.95, vnoise(vec2(uv.x * 90.0, uv.y * 40.0 + time_s * 0.6)));
-	col += vec3(0.03, 0.035, 0.045) * drops;
-	col += vec3(0.02, 0.022, 0.03) * smoothstep(0.6, 1.0, streak);
+	col += vec3(0.03, 0.035, 0.045) * drops * rain;
+	col += vec3(0.02, 0.022, 0.03) * smoothstep(0.6, 1.0, streak) * rain;
+	col = mix(col, vec3(0.05, 0.06, 0.075), (1.0 - rain) * 0.35 * (1.0 - bld * 0.5));
 	col += vec3(0.55, 0.6, 0.75) * flash * (0.6 + 0.4 * (1.0 - bld));
 	ALBEDO = col;
 }

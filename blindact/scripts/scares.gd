@@ -90,6 +90,7 @@ func setup(p_game: Node) -> void:
 	add_child(_key)
 	ghost_w = _make_ghost("woman", "womang")
 	ghost_m = _make_ghost("man", "manm")
+	ghost_m.monsterize(true)
 	ghost = ghost_w
 
 

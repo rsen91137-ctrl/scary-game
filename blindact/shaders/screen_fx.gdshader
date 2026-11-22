@@ -121,7 +121,7 @@ void fragment() {
 	float redk = smoothstep(0.025, 0.14, col.r - max(col.g, col.b) * 1.3);
 	if (sunglasses > 0.001) {
 		float lum = dot(col, vec3(0.299, 0.587, 0.114));
-		vec3 lens = mix(col, vec3(lum), 0.3) * vec3(0.8, 0.9, 0.96);
+		vec3 lens = mix(col, vec3(lum), 0.15) * vec3(0.84, 0.92, 0.96);
 		lens *= 0.62;
 		lens = lens * lens * 1.1 + lens * 0.42;   // about a stop darker, shadows kept
 		lens = mix(lens, col * vec3(1.0, 0.55, 0.55), redk * 0.9);

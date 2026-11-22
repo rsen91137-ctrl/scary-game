@@ -103,30 +103,30 @@ func _process(delta: float) -> void:
 			var obj: String = game.ui.get("_objective").text
 			var sp: Dictionary = game.flat.spots
 			var tick := fmod(_act_t, 1.0) < get_process_delta_time()
-			game.set_meta("bot_eat", p.mode == "seated" and game.scares.room_at(p.global_position) == "dining")
+			game.set_meta("bot_eat", p.mode == "seated" and game.scares.room_at(p.global_position) == "dining" and fmod(_t, 1.9) < 1.25)
 			if bool(game.get("entering")):
 				if _act_t > 6.0 and _once("to_piano"):
 					p.global_position = sp.piano_seat + Vector3(0.7, 0.05, 0.0)
 			elif obj == tr("OBJ_PREFIX") + tr("OBJ_BATH"):
-				if _once("to_bath"):
+				if p.mode == "walk" and game.scares.room_at(p.global_position) != "bath":
 					p.global_position = Vector3(1.2, 0.05, 4.35)
 				elif tick:
 					p.interacted.emit("cabinet")
 					p.interacted.emit("sink")
 			elif obj == tr("OBJ_PREFIX") + tr("OBJ_BACK"):
-				if _once("back"):
+				if p.mode == "walk" and p.global_position.distance_to(sp.piano_seat) > 1.2:
 					p.global_position = sp.piano_seat + Vector3(0.5, 0.05, 0.0)
 			elif obj == tr("OBJ_PREFIX") + tr("OBJ_KITCHEN") or obj == tr("OBJ_PREFIX") + tr("OBJ_PLATES") or obj == tr("OBJ_PREFIX") + tr("OBJ_CUTLERY"):
-				if _once("to_kitchen"):
+				if p.mode == "walk" and game.scares.room_at(p.global_position) != "kitchen":
 					p.global_position = sp.get("kitchen_mid", Vector3(-7.5, 0.0, 7.0)) + Vector3(0, 0.05, 0)
 				elif tick:
 					for id: String in ["plates", "lay_plates", "cutlery", "lay_cutlery"]:
 						p.interacted.emit(id)
 			elif obj == tr("OBJ_PREFIX") + tr("OBJ_DINNER"):
-				if _once("to_dinner"):
+				if p.mode == "walk" and p.global_position.distance_to(sp.get("dinner_seat", Vector3(-7.0, 0.0, 2.95))) > 0.8:
 					p.global_position = sp.get("dinner_seat", Vector3(-7.0, 0.0, 2.95)) + Vector3(0, 0.05, 0)
 			elif obj == tr("OBJ_PREFIX") + tr("OBJ_ATTIC"):
-				if _act_t > 2.0 and _once("to_attic"):
+				if p.mode == "walk" and game.scares.room_at(p.global_position) != "attic":
 					p.global_position = sp.get("attic_arrive", Vector3(-2.9, 2.95, 6.0)) + Vector3(0, 0.05, 0)
 			elif obj == tr("OBJ_PREFIX") + tr("OBJ_BED"):
 				if tick:

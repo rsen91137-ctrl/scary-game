@@ -15,6 +15,16 @@ func run(kind: String, secs: float, items: Array) -> void:
 		return
 	var bench: Vector3 = g.flat.spots.piano_seat
 	g._tr("free time " + kind)
+	if g.player.global_position.distance_to(bench) > 1.4:
+		# he takes you back to the piano first
+		g.ui.fade_to(1.0, 0.5)
+		await wait(0.6)
+		g._sit_at_piano()
+		g.man.stop()
+		g.man.global_position = g.flat.spots.armchair + Vector3(0.4, 0.0, -0.3)
+		g.man.set_pose("stand", 0.0)
+		g.ui.fade_to(0.0, 0.6)
+		await wait(0.6)
 	match kind:
 		"wc":
 			await g.man_say("MAN_WC", 2.4)

@@ -111,6 +111,7 @@ var moving := false
 var look_node: Node3D         # whose head he watches (null: his gaze drifts)
 var look_target := Vector3.INF
 var look_while_walking := false
+var grip_override := -1.0      # >= 0: close the right hand this much whatever the pose
 var follow_height := false    # walk paths change his height (stairs, slopes)
 var undead := false           # not alive, yet its head follows you
 var jaw_open := 0.0           # 0..1, a scream held open
@@ -218,6 +219,25 @@ func _tex(name: String) -> Texture2D:
 	var base := "woman" if tex_who.begins_with("woman") else "man"
 	p = "res://assets/textures/chars/%s.png" % name.replace(tex_who + "_", base + "_")
 	return load(p) if ResourceLoader.exists(p) else null
+
+
+## What fear makes of him: the neck too long, the arms down past the knees,
+## the head a size too big, and a twitch that never stops.
+var monster := false
+const MONSTER_SCALE := {"neck01": Vector3(1.0, 1.7, 1.0), "neck02": Vector3(1.0, 1.6, 1.0), "head": Vector3(1.16, 1.16, 1.16),
+	"upperarm01.L": Vector3(1.0, 1.28, 1.0), "upperarm01.R": Vector3(1.0, 1.28, 1.0), "lowerarm01.L": Vector3(1.0, 1.32, 1.0),
+	"lowerarm01.R": Vector3(1.0, 1.32, 1.0), "spine01": Vector3(1.0, 1.08, 1.0), "spine03": Vector3(1.0, 1.08, 1.0),
+	"wrist.L": Vector3(1.2, 1.3, 1.2), "wrist.R": Vector3(1.2, 1.3, 1.2)}
+
+
+func monsterize(on: bool) -> void:
+	monster = on
+	if skel == null:
+		return
+	for b: String in MONSTER_SCALE:
+		var i := skel.find_bone(b)
+		if i >= 0:
+			skel.set_bone_pose_scale(i, MONSTER_SCALE[b] if on else Vector3.ONE)
 
 
 ## Swap whose textures it wears (the corpse, the thing panic makes of her...).
@@ -382,7 +402,7 @@ func _process(delta: float) -> void:
 			current = _target_name
 			pose_reached.emit(current)
 	_locomote(delta)
-	if alive or _dirty or moving or _walk > 0.0 or (visible and (undead or jaw_open > 0.0 or lid_wide > 0.0)):
+	if alive or _dirty or moving or _walk > 0.0 or (visible and (undead or monster or jaw_open > 0.0 or lid_wide > 0.0)):
 		_compose(delta)
 		_dirty = false
 
@@ -629,7 +649,7 @@ func _amp(v: float) -> float:
 func _compose(delta: float) -> void:
 	var qc := {}
 	var qr := {}
-	_grip = move_toward(_grip, float(GRIP.get(_target_name, 0.0)), delta * 4.0)
+	_grip = move_toward(_grip, grip_override if grip_override >= 0.0 else float(GRIP.get(_target_name, 0.0)), delta * 4.0)
 	if _walk > 0.0:
 		_layer_walk(qc)
 	if alive:
@@ -638,6 +658,10 @@ func _compose(delta: float) -> void:
 		_layer_face(qr, delta)
 	elif undead:
 		_layer_look(qc, delta)
+	if monster and _idx.has("head"):
+		var tw := sin(_clock * 23.0) * sin(_clock * 3.1) * 0.5 + (0.6 if fmod(_clock, 2.7) < 0.08 else 0.0)
+		_rc(qc, "head", Vector3.FORWARD, deg_to_rad(9.0) * tw)
+		_rc(qc, "head", Vector3.UP, deg_to_rad(6.0) * sin(_clock * 17.0) * tw)
 	if jaw_open > 0.0 or lid_wide > 0.0:
 		if _idx.has("jaw"):
 			_rr(qr, "jaw", _jaw_axis, deg_to_rad(34.0) * jaw_open * (1.0 + 0.06 * sin(_clock * 31.0)))
