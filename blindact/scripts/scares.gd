@@ -229,6 +229,11 @@ func hit(strength := 1.0, sting := true, style := "") -> void:
 		hush(1.2, 2.5)
 
 
+## A blown-out frame (a camera flash, lightning in the room).
+func flash_frame(k: float) -> void:
+	_flash = maxf(_flash, k)
+
+
 ## The room's own sound drops away, then creeps back.
 func hush(hold: float, back := 2.0) -> void:
 	var amb: AudioStreamPlayer = game.amb

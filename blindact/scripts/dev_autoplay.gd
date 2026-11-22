@@ -100,35 +100,37 @@ func _process(delta: float) -> void:
 				game.mic.level_db = -4.0
 			if p.expect_gesture:
 				p.gesture.emit("nod")
-			# walking parts: walk the hall, wash, come back, leave
-			# (never move while he charges: that is exactly the bait)
+			var obj: String = game.ui.get("_objective").text
+			var sp: Dictionary = game.flat.spots
+			var tick := fmod(_act_t, 1.0) < get_process_delta_time()
+			game.set_meta("bot_eat", p.mode == "seated" and game.scares.room_at(p.global_position) == "dining")
 			if bool(game.get("entering")):
 				if _act_t > 6.0 and _once("to_piano"):
-					p.global_position = game.flat.spots.piano_seat + Vector3(0.7, 0.05, 0.0)
-			elif p.mode == "walk" and not piano.active and float(game.get("adrenaline")) < 0.05:
-				var bath_done: bool = _did.has("sink")
-				if not bath_done:
-					if _once("to_bath"):
-						p.global_position = Vector3(0.0, 0.05, 3.25)
-					elif _act_t > 0.0 and _did.has("to_bath") and not _did.has("in_bath") and p.global_position.z > 3.0:
-						_did["in_bath"] = true
-						p.global_position = Vector3(1.2, 0.05, 4.35)
-					elif _did.has("in_bath") and fmod(_act_t, 1.0) < get_process_delta_time():
-						p.interacted.emit("cabinet")
-						p.interacted.emit("sink")
-						if game.player.mode == "locked":
-							_did["sink"] = true
-				elif not _did.has("back"):
-					if _once("leave_bath"):
-						p.global_position = Vector3(0.0, 0.05, 2.0)
-					elif _once("back"):
-						p.global_position = game.flat.spots.piano_seat + Vector3(0.5, 0.05, 0.0)
-				elif _did.has("back") and _act_t > 0.0 and game.state.playing_piano == false and _once("exit_try"):
-					pass
-				if _did.has("back") and not piano.active and _act_t > 5.0:
-					var fi: Vector3 = game.flat.spots.front_inside
-					if p.global_position.distance_to(fi) > 0.5 and _did.has("exit_try"):
-						p.global_position = fi + Vector3(0, 0.05, 0)
+					p.global_position = sp.piano_seat + Vector3(0.7, 0.05, 0.0)
+			elif obj == tr("OBJ_PREFIX") + tr("OBJ_BATH"):
+				if _once("to_bath"):
+					p.global_position = Vector3(1.2, 0.05, 4.35)
+				elif tick:
+					p.interacted.emit("cabinet")
+					p.interacted.emit("sink")
+			elif obj == tr("OBJ_PREFIX") + tr("OBJ_BACK"):
+				if _once("back"):
+					p.global_position = sp.piano_seat + Vector3(0.5, 0.05, 0.0)
+			elif obj == tr("OBJ_PREFIX") + tr("OBJ_KITCHEN") or obj == tr("OBJ_PREFIX") + tr("OBJ_PLATES") or obj == tr("OBJ_PREFIX") + tr("OBJ_CUTLERY"):
+				if _once("to_kitchen"):
+					p.global_position = sp.get("kitchen_mid", Vector3(-7.5, 0.0, 7.0)) + Vector3(0, 0.05, 0)
+				elif tick:
+					for id: String in ["plates", "lay_plates", "cutlery", "lay_cutlery"]:
+						p.interacted.emit(id)
+			elif obj == tr("OBJ_PREFIX") + tr("OBJ_DINNER"):
+				if _once("to_dinner"):
+					p.global_position = sp.get("dinner_seat", Vector3(-7.0, 0.0, 2.95)) + Vector3(0, 0.05, 0)
+			elif obj == tr("OBJ_PREFIX") + tr("OBJ_ATTIC"):
+				if _act_t > 2.0 and _once("to_attic"):
+					p.global_position = sp.get("attic_arrive", Vector3(-2.9, 2.95, 6.0)) + Vector3(0, 0.05, 0)
+			elif obj == tr("OBJ_PREFIX") + tr("OBJ_BED"):
+				if tick:
+					p.interacted.emit("attic_bed")
 		"chase":
 			if _once("hide"):
 				p.global_position = game.flat.spots.wardrobe_front + Vector3(0, 0.05, 0)

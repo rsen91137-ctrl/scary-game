@@ -76,6 +76,23 @@ var _susp_stage := 0
 var _man_watching := false
 var scares: Scares
 var axe: Node3D
+var free_time := false          # he is away (WC, rubbish, asleep): you may search
+var front_locked := false
+var police_called := false      # the line left open, or the neighbour understood
+var neighbour_knows := false
+var know_code := false          # the safe: her birthday, from the diary
+var has_crowbar := false
+var phone_off_hook := false
+var night: ActNight
+var ext: Node3D                  # the estate and the forest (scripts/exterior_builder.gd)
+var _ext_ready := false
+const HIDES := {"wardrobe": ["wardrobe_in", "wardrobe_front", "hidden"], "hide_garret": ["hide_garret_in", "hide_garret_front", "hidden"],
+	"hide_dining": ["hide_dining_in", "hide_dining_front", "hidden_low"], "hide_pantry": ["hide_pantry_in", "hide_pantry_front", "hidden"]}
+var _dinner_nodes: Array[Node3D] = []
+var _meat_mat: StandardMaterial3D
+const EVIDENCE := {"recorder": "EV_RECORDER", "policy": "EV_POLICY", "receipt": "EV_RECEIPT", "phone": "EV_PHONE",
+	"diary": "EV_DIARY", "photos": "EV_PHOTOS", "canes": "EV_CANES", "freezer": "EV_FREEZER", "ids": "EV_IDS", "key": "EV_KEY"}
+const STRONG := ["policy", "receipt", "diary", "photos", "freezer", "ids"]
 var _door_lights: Array[Light3D] = []
 var _trail: Array[Vector3] = []
 var _trail_i := 0
@@ -614,6 +631,25 @@ func _build_world() -> void:
 	await _bake_nav()
 	_world_ready = true
 	world_ready.emit()
+	await _build_exterior()
+
+
+func _build_exterior() -> void:
+	var path := "res://scripts/exterior_builder.gd"
+	if not ResourceLoader.exists(path):
+		return
+	ext = load(path).new()
+	ext.name = "Exterior"
+	add_child(ext)
+	ext.position = Vector3(400.0, 0.0, 0.0)
+	await ext.build()
+	_ext_ready = true
+
+
+## A place outside, in world coordinates.
+func ext_spot(name: String) -> Vector3:
+	var s: Vector3 = ext.spots.get(name, Vector3.ZERO)
+	return s if s.x > 200.0 else ext.to_global(s)
 
 
 ## Acts that need the flat, the stairs or the people wait for them.
@@ -739,6 +775,33 @@ func _act_home() -> void:
 	await _leave_home()
 	if not _alive(g):
 		return
+	_act_outside()
+
+
+## Out of his block, across the estate in the fog, to her unit door.
+func _act_outside() -> void:
+	if ext == null:
+		_act_stairs()
+		return
+	while not _ext_ready:
+		await get_tree().process_frame
+	_gen += 1
+	var g := _gen
+	act = "outside"
+	ext.enter(world.world_env)
+	sunglasses_target = 0.8
+	player.cane_enabled = true
+	var a := load("res://scripts/acts/act_outside.gd")
+	if a == null:
+		ext.exit(world.world_env)
+		_act_stairs()
+		return
+	await a.new().run(self, g)
+	if not _alive(g):
+		return
+	ui.fade_to(1.0, 0.8)
+	await wait(1.0)
+	ext.exit(world.world_env)
 	_act_stairs()
 
 
@@ -1182,17 +1245,336 @@ func _door_run(g: int) -> void:
 			return
 
 
-## Down at the street door. (The forest chase takes over from here.)
+## Out of the street door and into the forest; he is still behind you.
 func _out_of_building(g: int) -> void:
 	if not _alive(g):
 		return
+	if ext == null or not _ext_ready:
+		_gen += 1
+		act = "end"
+		ui.fade_to(1.0, 0.6)
+		await wait(0.8)
+		chase_music.stop()
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		ui.show_end("END_ESCAPE", "END_RAN_D")
+		return
+	_gen += 1
+	g = _gen
+	act = "forest"
+	ui.fade_to(1.0, 0.25)
+	await wait(0.3)
+	ext.enter(world.world_env)
+	player.global_position = ext_spot("chase_start") + Vector3(0.0, 0.1, 0.0)
+	var away := ext_spot("forest_gate") - player.global_position
+	player.yaw = atan2(-away.x, -away.z)
+	player.set_mode("walk", player.yaw)
+	player.snap_eye()
+	man.visible = true
+	man.stop()
+	man.follow_height = true
+	man.retexture("manm")
+	man.jaw_open = 0.8
+	man.lid_wide = 1.0
+	man.set_pose("knife_low", 0.0)
+	axe.visible = true
+	man.global_position = ext_spot("her_unit_door")
+	ui.fade_to(0.0, 0.4)
+	ui.objective("OBJ_FOREST")
+	ui.hint("HINT_FOREST", 8.0)
+	scares.hit(0.8, true, "scream")
+	_forest_loop(g)
+
+
+var _fhides: Array[Area3D] = []
+
+## He hunts you through the trees by sight and by sound. Hide, catch your
+## breath, keep moving; the road is on the far side.
+func _forest_loop(g: int) -> void:
+	for a: Area3D in _fhides:
+		if is_instance_valid(a):
+			a.queue_free()
+	_fhides.clear()
+	var hides: Array[Vector3] = []
+	for k: String in ext.spots:
+		if k.begins_with("hide_"):
+			var hp := ext_spot(k)
+			hides.append(hp)
+			var a := Area3D.new()
+			a.collision_layer = 2
+			a.collision_mask = 0
+			var cs := CollisionShape3D.new()
+			var bs := BoxShape3D.new()
+			bs.size = Vector3(1.4, 1.6, 1.4)
+			cs.shape = bs
+			a.add_child(cs)
+			a.set_meta("interact", "ACT_HIDE")
+			a.set_meta("id", "fhide_%d" % (hides.size() - 1))
+			add_child(a)
+			a.global_position = hp + Vector3(0, 0.8, 0)
+			_fhides.append(a)
+	var exit := ext_spot("forest_exit")
+	var last_seen := player.global_position
+	var repath := 0.0
+	var lost := 0.0
+	var search := Vector3.INF
+	var scare_in := _rng.randf_range(14.0, 24.0)
+	await wait(1.0)
+	while _alive(g) and act == "forest":
+		await get_tree().process_frame
+		var dt := get_process_delta_time()
+		var mp := man.global_position
+		var pp := player.global_position
+		var d := mp.distance_to(pp)
+		var moving := Vector2(player.velocity.x, player.velocity.z).length() > 0.3
+		var sees := hidden_in == "" and d < 18.0 and _line_of_sight(man.bone_pos("head"), player.eye_pos())
+		var heard := (player.sprinting and d < 15.0) or (_t - _last_noise < 0.6 and d < 13.0) or (moving and d < 5.0) or (player.exhausted and d < 7.0)
+		var spd := 2.0 * float(Difficulty.get_value("chase_speed"))
+		var target := last_seen
+		if sees or heard:
+			last_seen = pp
+			lost = 0.0
+			search = Vector3.INF
+			target = pp
+			spd = 2.75 * float(Difficulty.get_value("chase_speed"))
+		else:
+			lost += dt
+			if Vector2(mp.x - last_seen.x, mp.z - last_seen.z).length() < 1.2:
+				# where did you go? the nearest place a man could hide
+				if search == Vector3.INF:
+					var best := 999.0
+					for h: Vector3 in hides:
+						var dh := h.distance_to(mp)
+						if dh < best and dh < 14.0:
+							best = dh
+							search = h
+				if search != Vector3.INF:
+					target = search
+					if mp.distance_to(search) < 1.3:
+						if hidden_in != "" and pp.distance_to(search) < 1.5 and (_t - _last_noise < 5.0 or _rng.randf() < 0.3):
+							_axe_kill(g, "TELL_FOUND")
+							return
+						hides.erase(search)
+						search = Vector3.INF
+						last_seen = mp + Vector3(_rng.randf_range(-10, 10), 0, _rng.randf_range(-10, 10))
+		repath -= dt
+		if repath <= 0.0:
+			repath = 0.3
+			var path: PackedVector3Array = ext.path(mp, target)
+			if path.size() > 0:
+				man.walk_path(path, spd)
+		if hidden_in == "" and d < 0.85:
+			_axe_kill(g, "TELL_RAN")
+			return
+		if pp.distance_to(exit) < 4.0:
+			_escape("END_FOREST", "END_FOREST_D")
+			return
+		scare_in -= dt
+		if scare_in <= 0.0 and scares.busy == 0:
+			scare_in = _rng.randf_range(16.0, 30.0)
+			if _rng.randf() < 0.5:
+				scares.phantom_sound()
+			else:
+				scares.far()
+
+
+func _escape(title: String, desc: String) -> void:
 	_gen += 1
 	act = "end"
-	ui.fade_to(1.0, 0.6)
-	await wait(0.8)
 	chase_music.stop()
+	ui.fade_to(1.0, 1.0)
+	await wait(1.2)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	ui.show_end("END_ESCAPE", "END_RAN_D")
+	ui.show_end(title, desc, _evidence_lines())
+
+
+## Exposed, you pull the main switch. Dark. You have lived in the dark for
+## years; he has not.
+func _blackout_chase() -> void:
+	if scares._dark:
+		return
+	_sfx3d("res://assets/audio/relay_click.ogg", flat.spots.get("fusebox", player.eye_pos()), 2.0, 4.0)
+	scares.lights(false)
+	man_speed = 0.6
+	think("THINK_BLACKOUT", 3.5)
+
+
+## The table: what you have laid out so far.
+func lay_table(what: String) -> void:
+	var at: Vector3 = flat.spots.get("plate", Vector3(-7.0, 0.79, 2.5))
+	var china := StandardMaterial3D.new()
+	china.albedo_color = Color(0.86, 0.88, 0.86)
+	china.roughness = 0.2
+	if what == "plates":
+		for p: Vector3 in [at, flat.spots.get("his_seat", at + Vector3(-2.0, 0, 0)) * Vector3(1, 0, 1) + Vector3(0.45, at.y, 0.0)]:
+			var m := MeshInstance3D.new()
+			var cm := CylinderMesh.new()
+			cm.top_radius = 0.13
+			cm.bottom_radius = 0.1
+			cm.height = 0.018
+			m.mesh = cm
+			m.material_override = china
+			add_child(m)
+			m.global_position = p
+			_dinner_nodes.append(m)
+
+
+func meat_material() -> StandardMaterial3D:
+	if _meat_mat == null:
+		_meat_mat = StandardMaterial3D.new()
+		var tp := "res://assets/textures/props/meat_albedo.png"
+		if ResourceLoader.exists(tp):
+			_meat_mat.albedo_texture = load(tp)
+		else:
+			_meat_mat.albedo_color = Color(0.45, 0.2, 0.12)
+		_meat_mat.roughness = 0.35
+		_meat_mat.metallic_specular = 0.7
+		_meat_mat.clearcoat_enabled = true
+		_meat_mat.clearcoat = 0.5
+	return _meat_mat
+
+
+## Dinner: a roast on your plate (with a bone in it), a bowl of something
+## dark and thick, a glass of something darker.
+func serve_dinner(at: Vector3) -> void:
+	var roast := MeshInstance3D.new()
+	roast.mesh = MeshUtil.lathe(PackedVector2Array([Vector2(0.0, 0.0), Vector2(0.75, 0.05), Vector2(1.0, 0.35), Vector2(0.9, 0.75),
+			Vector2(0.55, 0.95), Vector2(0.0, 1.0)]), Vector2(0.075, 0.045), 2.4, 20)
+	roast.material_override = meat_material()
+	add_child(roast)
+	roast.global_position = at + Vector3(0.0, 0.012, 0.0)
+	roast.scale = Vector3(1.0, 1.0, 1.6)
+	_dinner_nodes.append(roast)
+	var bone := MeshInstance3D.new()
+	bone.mesh = MeshUtil.tube(PackedVector3Array([Vector3(0, 0.04, 0.06), Vector3(0, 0.05, 0.16), Vector3(0, 0.05, 0.2)]), PackedFloat32Array([0.012, 0.01, 0.016]), 8)
+	var bm := StandardMaterial3D.new()
+	bm.albedo_color = Color(0.86, 0.8, 0.68)
+	bm.roughness = 0.6
+	bone.material_override = bm
+	roast.add_child(bone)
+	# a finger in the stew, nail still painted
+	var bowl := MeshInstance3D.new()
+	bowl.mesh = MeshUtil.lathe(PackedVector2Array([Vector2(0.0, 0.0), Vector2(0.6, 0.0), Vector2(1.0, 0.7), Vector2(1.0, 0.75), Vector2(0.0, 0.62)]), Vector2(0.07, 0.06), 2.0, 20)
+	var china := StandardMaterial3D.new()
+	china.albedo_color = Color(0.82, 0.84, 0.82)
+	china.roughness = 0.2
+	bowl.material_override = china
+	add_child(bowl)
+	bowl.global_position = at + Vector3(0.22, 0.0, -0.12)
+	_dinner_nodes.append(bowl)
+	var stew := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.064
+	cm.bottom_radius = 0.064
+	cm.height = 0.004
+	stew.mesh = cm
+	stew.material_override = flat.get("_m").blood
+	bowl.add_child(stew)
+	stew.position = Vector3(0, 0.04, 0)
+	var finger := MeshInstance3D.new()
+	var fm := CapsuleMesh.new()
+	fm.radius = 0.008
+	fm.height = 0.07
+	finger.mesh = fm
+	finger.material_override = meat_material()
+	bowl.add_child(finger)
+	finger.position = Vector3(0.015, 0.045, 0.01)
+	finger.rotation = Vector3(1.2, 0.4, 0.0)
+	var nail := MeshInstance3D.new()
+	nail.mesh = MeshUtil.rounded_box(Vector3(0.008, 0.002, 0.01), 0.001)
+	var nm := StandardMaterial3D.new()
+	nm.albedo_color = Color(0.55, 0.03, 0.06)
+	nm.roughness = 0.15
+	nail.material_override = nm
+	finger.add_child(nail)
+	nail.position = Vector3(0, 0.032, 0.006)
+
+
+func serve_dessert(at: Vector3) -> void:
+	var dish := MeshInstance3D.new()
+	dish.mesh = MeshUtil.lathe(PackedVector2Array([Vector2(0.0, 0.0), Vector2(0.4, 0.0), Vector2(1.0, 0.6), Vector2(0.0, 0.5)]), Vector2(0.08, 0.06), 2.0, 20)
+	var glass := StandardMaterial3D.new()
+	glass.albedo_color = Color(0.9, 0.95, 1.0, 0.25)
+	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glass.roughness = 0.05
+	dish.material_override = glass
+	add_child(dish)
+	dish.global_position = at + Vector3(0.0, 0.03, 0.0)
+	_dinner_nodes.append(dish)
+	# her eyes, in red jelly
+	for s: float in [-0.022, 0.022]:
+		var eye := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.0125
+		sm.height = 0.025
+		eye.mesh = sm
+		var em := StandardMaterial3D.new()
+		var tp := "res://assets/textures/chars/womanc_eyes_albedo.png"
+		em.albedo_texture = load(tp) if ResourceLoader.exists(tp) else null
+		em.roughness = 0.1
+		eye.material_override = em
+		dish.add_child(eye)
+		eye.position = Vector3(s, 0.035, 0.0)
+		eye.rotation = Vector3(-0.4, 0.3 * s * 40.0, 0.0)
+
+
+func clear_dinner() -> void:
+	for n: Node3D in _dinner_nodes:
+		if is_instance_valid(n):
+			n.queue_free()
+	_dinner_nodes.clear()
+
+
+## Her head on the cake stand at your left, facing you.
+func place_head_on_stand(at: Vector3, eye: Vector3) -> void:
+	if head == null:
+		head = CharacterRig.new()
+		head.name = "Head"
+		add_child(head)
+		head.setup("woman_head", "womanc", false)
+	head.retexture("womanc")
+	head.visible = true
+	_head_held = false
+	_dangle = false
+	head.global_position = at + Vector3(0.0, 0.14, 0.0)
+	var d := eye - head.global_position
+	head.global_rotation = Vector3(0.0, atan2(d.x, d.z), 0.0)
+
+
+var _cold_saved := 1.0
+## Candlelight: the grade lets the warmth through while you are at table.
+func dinner_mood(on: bool) -> void:
+	if on:
+		_cold_saved = float(post_mat.get_shader_parameter("cold"))
+		post_mat.set_shader_parameter("cold", 0.25)
+	else:
+		post_mat.set_shader_parameter("cold", _cold_saved)
+		clear_dinner()
+
+
+func dinner_candles_gutter() -> void:
+	for n: String in flat.lamps:
+		if n.begins_with("dining"):
+			var l: Light3D = flat.lamps[n]
+			var e := l.light_energy
+			var tw := create_tween()
+			tw.tween_property(l, "light_energy", e * 0.15, 0.3)
+			tw.tween_property(l, "light_energy", e, 1.4)
+
+
+func lamp_off(name: String) -> void:
+	var l: Light3D = flat.lamps.get(name)
+	if l:
+		create_tween().tween_property(l, "light_energy", 0.0, 0.8)
+
+
+## The storm comes in after midnight: rain on the roof, the lightning closer.
+func storm(on: bool) -> void:
+	_next_lightning = minf(_next_lightning, 6.0) if on else _next_lightning
+	set_meta("storm", on)
+
+
+func hush_room(secs: float) -> void:
+	scares.hush(secs, 2.0)
 
 
 ## The axe. A swing you see coming and cannot stop.
@@ -1332,6 +1714,12 @@ func _act_flat() -> void:
 	# second piece: the string, the duet
 	ui.objective("")
 	_sit_at_piano()
+	# he needs the bathroom: a minute alone
+	await ActFreeTime.new(self, g).run("wc", 80.0, ["recorder", "policy", "receipt", "phone"])
+	if not _alive(g):
+		return
+	if player.mode != "seated":
+		_sit_at_piano()
 	_tr("piece 2")
 	piano_ui.start(PianoGame.prelude())
 	state.playing_piano = true
@@ -1340,15 +1728,31 @@ func _act_flat() -> void:
 	if not _alive(g):
 		return
 	state.playing_piano = false
-	# midnight
+	# the kitchen, the dinner, the neighbour
+	await ActKitchen.new(self, g).run()
+	if not _alive(g):
+		return
+	await ActDinner.new(self, g).run()
+	if not _alive(g):
+		return
+	dinner_mood(false)
+	await ActNeighbour.new(self, g).run()
+	if not _alive(g):
+		return
+	# he takes the bags down: the longest time alone
 	_sfx3d("res://assets/audio/clock_chime.ogg", flat.spots.clock, 0.0, 4.0)
-	await wait(2.5)
-	_tr("midnight")
-	await man_say("MAN_13", 3.2)
-	_stand_up()
-	ui.objective("OBJ_EXIT")
-	ui.hint("HINT_EXIT", 7.0)
-	await _leaving(g)
+	await ActFreeTime.new(self, g).run("bags", 150.0, ["diary", "photos", "canes", "freezer", "ids", "key", "policy", "receipt", "recorder"])
+	if not _alive(g):
+		return
+	await ActPhoto.new(self, g).run()
+	if not _alive(g):
+		return
+	night = ActNight.new(self, g)
+	await night.run()
+	night = null
+	if not _alive(g):
+		return
+	await ActFinale.new(self, g).run()
 
 
 ## The door shuts behind you and the hall bulb is on. She is lying on the
@@ -2203,12 +2607,92 @@ func _ending_exit() -> void:
 	ui.fade_to(1.0, 1.5)
 	await wait(1.8)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	if state.evidence.get("confession", false):
-		ui.show_end("END_TRUTH", "END_TRUTH_D")
+	var strong := 0
+	for k: String in STRONG:
+		if found(k):
+			strong += 1
+	var tag := ("\n\n" + tr("END_ATE_TAG")) if state.evidence.get("ate", false) else ""
+	if state.evidence.get("confession", false) or strong >= 3:
+		ui.show_end("END_TRUTH", "END_TRUTH_D", _evidence_lines() + tag)
+	elif police_called:
+		ui.show_end("END_LINE", "END_LINE_D", _evidence_lines() + tag)
 	elif state.frame >= 40.0:
-		ui.show_end("END_SCAPEGOAT", "END_SCAPEGOAT_D", _frame_lines())
+		ui.show_end("END_SCAPEGOAT", "END_SCAPEGOAT_D", _frame_lines() + tag)
 	else:
-		ui.show_end("END_SILENCE", "END_SILENCE_D")
+		ui.show_end("END_SILENCE", "END_SILENCE_D", tag)
+
+
+func _evidence_lines() -> String:
+	var out := ""
+	for k: String in EVIDENCE:
+		if found(k):
+			out += "· " + tr(EVIDENCE[k]) + "\n"
+	return out
+
+
+# ---------------------------------------------------------------------------
+# evidence, and the things you can do while he is away
+# ---------------------------------------------------------------------------
+func found(key: String) -> bool:
+	if key == "recorder":
+		return has_recorder
+	if key == "phone":
+		return phone_off_hook or police_called
+	return bool(state.evidence.get(key, false))
+
+
+func show_evidence(keys: Array) -> void:
+	var items := []
+	for k: String in keys:
+		items.append([EVIDENCE.get(k, k), found(k)])
+	ui.evidence(items)
+
+
+func _take(key: String, line: String, secs := 3.5) -> void:
+	if found(key):
+		think("THINK_NOTHING", 1.5)
+		return
+	state.evidence[key] = true
+	think(line, secs)
+	_sfx("res://assets/audio/paper_rustle.ogg", -6.0)
+	if state.watched and man.visible and not free_time:
+		state.add_suspicion(14.0, "TELL_SNOOP")
+
+
+func _secret_door(id: String, open: bool) -> void:
+	var h: Node3D = flat.doors.get(id)
+	if h == null:
+		return
+	var to: float = h.get_meta("open_rot", h.rotation.y + 1.4) if open else h.get_meta("closed_rot", h.rotation.y)
+	create_tween().tween_property(h, "rotation:y", to, 1.2).set_trans(Tween.TRANS_SINE)
+	_sfx3d("res://assets/audio/bookcase_grind.ogg" if id == "bookcase" else "res://assets/audio/door_creak.ogg", h.global_position + Vector3(0, 1.0, 0), -4.0, 3.0)
+	h.set_meta("is_open", open)
+
+
+func _climb(to: Vector3, up: bool) -> void:
+	player.set_mode("locked")
+	_sfx("res://assets/audio/ladder_creak.ogg", -4.0)
+	var tw := create_tween()
+	tw.tween_property(player, "global_position", player.global_position + Vector3(0, 0.6 if up else -0.3, 0), 0.5)
+	tw.tween_property(player, "global_position", to + Vector3(0, 0.05, 0), 1.1).set_trans(Tween.TRANS_SINE)
+	await tw.finished
+	player.set_mode("walk", player.yaw)
+	player.unstick()
+
+
+## Look through a hole in the wall. Sometimes something looks back.
+func _peep(id: String) -> void:
+	var hole: Vector3 = flat.spots.get(id, player.eye_pos())
+	var into: Vector3 = Vector3(hole.x - 1.0, hole.y, hole.z) if id == "peep_bath" else Vector3(hole.x - 1.0, hole.y - 0.3, hole.z)
+	var back := player.global_position
+	player.set_mode("locked")
+	player.look_toward(into, 0.4)
+	create_tween().tween_property(player, "global_position", Vector3(hole.x + 0.32, back.y, hole.z), 0.4)
+	await wait(2.4)
+	if _rng.randf() < 0.45 and scares.busy == 0:
+		await scares.pop("pop", false)
+	player.global_position = back
+	player.set_mode("walk", player.yaw)
 
 
 func _frame_lines() -> String:
@@ -2244,6 +2728,10 @@ func _on_exposed(reason: String) -> void:
 	man.jaw_open = 0.85
 	man.lid_wide = 1.0
 	scares.hit(1.0)
+	front_locked = true
+	man.follow_height = true
+	if night:
+		night.in_bed = false
 	man.set_pose("knife_low", 0.3)
 	man.look_while_walking = true
 	knife.visible = true
@@ -2256,8 +2744,11 @@ func _on_exposed(reason: String) -> void:
 		return
 	chase_music.volume_db = -3.0
 	chase_music.play()
-	ui.objective("OBJ_HIDE")
-	ui.hint("HINT_CHASE", 8.0)
+	ui.objective("OBJ_CHASE")
+	ui.hint("HINT_CHASE_V3", 10.0)
+	_sfx3d("res://assets/audio/key_lock.ogg", Vector3(0.0, 1.0, 0.1), 0.0, 4.0)
+	knife.visible = false
+	axe.visible = true
 	chase_mode = "hunt"
 	_chase_loop(g)
 
@@ -2286,7 +2777,9 @@ func _chase_loop(g: int) -> void:
 		var pp := player.global_position
 		var sees := hidden_in == "" and _line_of_sight(man.bone_pos("head"), player.eye_pos()) and mp.distance_to(pp) < 9.0
 		var heard := _t - _last_noise < 0.6 and mp.distance_to(pp) < float(Difficulty.get_value("hearing_m"))
-		var target: Vector3 = ROUTE[idx]
+		var route: Array = _patrol()
+		idx = idx % route.size()
+		var target: Vector3 = route[idx]
 		var spd := 1.15 * float(Difficulty.get_value("chase_speed"))
 		if sees or heard:
 			target = pp
@@ -2297,8 +2790,8 @@ func _chase_loop(g: int) -> void:
 			if hidden_in == "":
 				target = pp
 				spd = 1.8 * float(Difficulty.get_value("chase_speed"))
-		if target == ROUTE[idx] and Vector2(target.x - mp.x, target.z - mp.z).length() < 0.5:
-			idx = (idx + 1) % ROUTE.size()
+		if target == route[idx] and Vector2(target.x - mp.x, target.z - mp.z).length() < 0.5:
+			idx = (idx + 1) % route.size()
 			repath = 0.0
 			# checking a hiding place
 			if hidden_in != "" and _near_hide(mp):
@@ -2315,6 +2808,21 @@ func _chase_loop(g: int) -> void:
 			return
 
 
+var _route_cache: Array = []
+
+## Where he walks when he has lost you: every room, the hiding places on the way.
+func _patrol() -> Array:
+	if _route_cache.is_empty():
+		for k: String in ["hall_mid", "wardrobe_front", "study_desk", "kitchen_mid", "hide_pantry_front", "dining_mid", "hide_dining_front",
+				"stair_bottom", "garret_mid", "hide_garret_front", "storage_mid", "passage_mid", "armchair"]:
+			if flat.spots.has(k):
+				var v: Vector3 = flat.spots[k]
+				_route_cache.append(Vector3(v.x, v.y if v.y > 2.0 else 0.0, v.z))
+		if _route_cache.size() < 3:
+			_route_cache = ROUTE.duplicate()
+	return _route_cache
+
+
 func _he_sees_you() -> bool:
 	var head := man.bone_pos("head")
 	var to_p := player.eye_pos() - head
@@ -2327,8 +2835,8 @@ func _he_sees_you() -> bool:
 
 
 func _near_hide(mp: Vector3) -> bool:
-	if hidden_in == "wardrobe":
-		return mp.distance_to(flat.spots.wardrobe_front) < 1.0
+	if HIDES.has(hidden_in):
+		return mp.distance_to(flat.spots.get(HIDES[hidden_in][1], Vector3.INF)) < 1.1
 	if hidden_in == "curtain":
 		return mp.distance_to(Vector3(1.6, 0, 4.4)) < 1.0
 	return false
@@ -2381,34 +2889,140 @@ func _on_interact(id: String) -> void:
 	match id:
 		"money":
 			state.expose("TELL_GREED")
-		"wardrobe":
-			if act == "chase":
+		_ when id.begins_with("fhide_"):
+			if act == "forest":
+				var a: Area3D = _fhides[int(id.substr(6))]
 				if hidden_in == "":
-					hidden_in = "wardrobe"
-					player.global_position = flat.spots.wardrobe_in
-					player.set_mode("hidden", deg_to_rad(90.0))
+					hidden_in = id
+					player.global_position = a.global_position - Vector3(0, 0.8, 0)
+					player.set_mode("hidden_low", player.yaw)
 					ui.hint("ACT_LEAVE_HIDE", 3.0)
 				else:
 					hidden_in = ""
-					player.global_position = flat.spots.wardrobe_front
 					player.set_mode("walk", player.yaw)
+					player.unstick()
+		"wardrobe", "hide_garret", "hide_dining", "hide_pantry":
+			if act == "chase" or (id == "wardrobe" and free_time):
+				_toggle_hide(id)
 		"window_escape":
 			if act == "chase":
-				_gen += 1
-				act = "end"
-				chase_music.stop()
-				ui.fade_to(1.0, 1.0)
-				await wait(1.2)
-				Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-				ui.show_end("END_ESCAPE", "END_ESCAPE_D")
+				if not has_crowbar:
+					think("THINK_NAILED", 3.0)
+				else:
+					# the nails scream as they come out; he hears it
+					_sfx3d("res://assets/audio/nails_pry.ogg", flat.spots.escape + Vector3(0, 1.2, 0.3), 2.0, 5.0)
+					_last_noise = _t
+					player.set_mode("locked")
+					await wait(2.6)
+					if act == "chase":
+						_escape("END_ESCAPE", "END_ESCAPE_D")
 		"front_door":
-			if act == "chase":
+			if act == "chase" and found("key"):
+				_escape("END_ESCAPE", "END_KEY_D")
+			elif act == "chase" or front_locked:
 				think("THINK_LOCKED", 1.5)
 		"cabinet", "towels", "coat", "drawer":
 			if act == "flat" or act == "chase":
 				_search(id)
+		"files":
+			_take("policy", "THINK_POLICY", 4.0)
+		"desk":
+			_take("receipt", "THINK_RECEIPT", 4.0)
+		"study_phone":
+			if not phone_off_hook:
+				phone_off_hook = true
+				police_called = true
+				_sfx3d("res://assets/audio/phone_click.ogg", flat.spots.get("study_phone", player.eye_pos()), -2.0, 2.0)
+				think("THINK_PHONE", 4.5)
+		"diary":
+			if not found("diary"):
+				know_code = true
+				_take("diary", "THINK_DIARY", 5.0)
+				get_tree().create_timer(5.2).timeout.connect(func() -> void: think("THINK_DIARY_2", 4.5))
+		"camera":
+			_take("photos", "THINK_PHOTOS", 4.5)
+		"canes":
+			_take("canes", "THINK_CANES", 4.5)
+		"trunk":
+			think("THINK_TRUNK", 3.5)
+		"freezer":
+			if not found("freezer"):
+				_sfx3d("res://assets/audio/fridge_open.ogg", flat.spots.get("freezer", player.eye_pos()), 0.0, 2.0)
+				scares.hit(0.85, true, "hit")
+				_take("freezer", "THINK_FREEZER", 4.0)
+		"safe":
+			if found("key"):
+				think("THINK_NOTHING", 1.5)
+			elif know_code:
+				_sfx3d("res://assets/audio/safe_open.ogg", flat.spots.get("safe", player.eye_pos()), -2.0, 2.0)
+				state.evidence["ids"] = true
+				_take("key", "THINK_SAFE_OPEN", 5.0)
+			else:
+				_sfx3d("res://assets/audio/safe_click.ogg", flat.spots.get("safe", player.eye_pos()), -4.0, 2.0)
+				think("THINK_SAFE_LOCKED", 3.5)
+		"crowbar":
+			if not has_crowbar:
+				has_crowbar = true
+				think("THINK_CROWBAR", 3.0)
+		"fusebox":
+			if act == "chase":
+				_blackout_chase()
+			else:
+				think("THINK_FUSE", 4.0)
+		"bookcase", "bookcase_p":
+			var h: Node3D = flat.doors.get("bookcase")
+			if h:
+				if id == "bookcase" and not bool(h.get_meta("is_open", false)) and not _hints.has("bookcase"):
+					_hints["bookcase"] = true
+					think("THINK_BOOKCASE", 3.5)
+				_secret_door("bookcase", not bool(h.get_meta("is_open", false)))
+		"wardrobe_back", "wardrobe_back_p":
+			var wb: Node3D = flat.doors.get("wardrobe_back")
+			if wb:
+				_secret_door("wardrobe_back", not bool(wb.get_meta("is_open", false)))
+				if id == "wardrobe_back" and hidden_in == "wardrobe":
+					hidden_in = ""
+					await wait(1.0)
+					player.global_position = flat.spots.get("passage_north", player.global_position + Vector3(1.1, 0, 0))
+					player.set_mode("walk", 0.0)
+		"ladder_up":
+			_climb(flat.spots.get("hatch_top", player.global_position + Vector3(0, 3.0, 0)), true)
+		"hatch_down":
+			_climb(flat.spots.get("ladder_bottom", player.global_position - Vector3(0, 3.0, 0)), false)
+		"peep_bath", "peep_bed":
+			_peep(id)
+		"skylight":
+			if act == "chase":
+				_escape("END_ROOF", "END_ROOF_D")
+			else:
+				think("THINK_SKYLIGHT", 3.5)
+		"attic_bed":
+			if night:
+				if night.in_bed:
+					night.get_up()
+				else:
+					night.lie_down()
 	if id == "cabinet" and act == "chase" and hidden_in == "":
 		pass
+
+
+func _toggle_hide(id: String) -> void:
+	var h: Array = HIDES[id]
+	if hidden_in == "":
+		if not flat.spots.has(h[0]):
+			return
+		hidden_in = id
+		var inside: Vector3 = flat.spots[h[0]]
+		var front: Vector3 = flat.spots.get(h[1], inside)
+		player.global_position = inside
+		var out := front - inside
+		player.set_mode(h[2], atan2(-out.x, -out.z) if out.length() > 0.05 else player.yaw)
+		ui.hint("ACT_LEAVE_HIDE", 3.0)
+	elif hidden_in == id:
+		hidden_in = ""
+		player.global_position = flat.spots.get(h[1], player.global_position)
+		player.set_mode("walk", player.yaw)
+		player.unstick()
 
 
 func _on_tap(pos: Vector3) -> void:

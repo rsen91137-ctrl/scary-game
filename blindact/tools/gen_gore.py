@@ -471,10 +471,33 @@ def photo_dead() -> None:
     print("wrote decal photo_her_dead")
 
 
+def meat() -> None:
+    """Roasted flesh: a browned crust, fat in streaks, glistening."""
+    out = ROOT / "assets/textures/props"
+    out.mkdir(parents=True, exist_ok=True)
+    S = 512
+    n1 = fbm(S, S, 64, 81)
+    n2 = fbm(S, S, 12, 82)
+    y, x = np.mgrid[0:S, 0:S].astype(np.float32)
+    streak = sstep(0.62, 0.72, 0.5 + 0.5 * np.sin(y * 0.05 + n1 * 9.0))
+    crust = np.array([0.36, 0.16, 0.07], np.float32) * (0.55 + 0.6 * n2[..., None])
+    char = np.array([0.08, 0.035, 0.02], np.float32)
+    fat = np.array([0.82, 0.68, 0.48], np.float32)
+    raw = np.array([0.55, 0.14, 0.12], np.float32)
+    img = crust * (1 - sstep(0.62, 0.8, n1)[..., None]) + char * sstep(0.62, 0.8, n1)[..., None]
+    img = img * (1 - streak[..., None] * 0.7) + fat * streak[..., None] * 0.7
+    img = img * (1 - sstep(0.7, 0.85, n2)[..., None] * 0.5) + raw * sstep(0.7, 0.85, n2)[..., None] * 0.5
+    Image.fromarray((np.clip(img, 0, 1) * 255 + 0.5).astype(np.uint8)).save(out / "meat_albedo.png", optimize=True)
+    print("wrote props/meat_albedo")
+
+
 def main() -> None:
     import sys
     if "--decals" in sys.argv:
         decals()
+        return
+    if "--meat" in sys.argv:
+        meat()
         return
     if "--photo" in sys.argv:
         photo_dead()
@@ -500,6 +523,7 @@ def main() -> None:
     bloodied_cloth("man_cloth_albedo", "manb_cloth_albedo", 42)
     decals()
     photo_dead()
+    meat()
 
 
 if __name__ == "__main__":
