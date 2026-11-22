@@ -41,6 +41,12 @@ func run() -> void:
 		await wait(0.6)
 		p.global_position = arrive + Vector3(0, 0.05, 0)
 		g.ui.fade_to(0.0, 0.6)
+	# rain on the roof, a hand's breadth over your head
+	var rain := "res://assets/audio/roof_rain_loop.ogg"
+	if ResourceLoader.exists(rain):
+		g.amb.stream = load(rain)
+		g.amb.volume_db = -6.0
+		g.amb.play()
 	await g.man_say("MAN_NIGHT_BED", 2.6)
 	g.ui.objective("OBJ_BED")
 	g.ui.hint("HINT_BED", 7.0)
@@ -234,3 +240,6 @@ func game_phantom(pos: Vector3) -> void:
 func _done() -> void:
 	g.scares.busy = maxi(0, g.scares.busy - 1)
 	g.scares._hide()
+	g.amb.stream = load("res://assets/audio/amb_flat.ogg")
+	g.amb.volume_db = -8.0
+	g.amb.play()

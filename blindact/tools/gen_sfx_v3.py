@@ -194,6 +194,25 @@ def main() -> None:
     x[:fade] = x[:fade] * np.linspace(0, 1, fade) + x[-fade:] * np.linspace(1, 0, fade)
     write("roof_rain_loop", x[:-fade], 0.55)
 
+    # leaves in the wind: thousands of tiny ticks over a soft hiss (loop)
+    secs = 8.0
+    x = bp(n(secs), 1800, 9000) * 0.18
+    for _ in range(int(secs * 2600)):
+        at = int(RNG.uniform(0, secs - 0.01) * SR)
+        ln = int(RNG.uniform(0.002, 0.008) * SR)
+        x[at:at + ln] += bp(RNG.standard_normal(ln), 2500, 9500)[:ln] * RNG.uniform(0.02, 0.22) * np.hanning(ln)
+    x *= 0.75 + 0.25 * np.sin(2 * np.pi * 0.35 * np.arange(len(x)) / SR)
+    fade = int(0.6 * SR)
+    x[:fade] = x[:fade] * np.linspace(0, 1, fade) + x[-fade:] * np.linspace(1, 0, fade)
+    write("leaves_rustle_loop", x[:-fade], 0.6)
+    # wind through pines: a deep, slowly breathing roar (loop)
+    secs = 10.0
+    t = t_(secs)
+    x = lp(n(secs), 500) * (0.6 + 0.4 * np.sin(2 * np.pi * 0.11 * t)) + bp(n(secs), 300, 1400) * 0.35 * (0.5 + 0.5 * np.sin(2 * np.pi * 0.07 * t + 1.0))
+    fade = int(0.8 * SR)
+    x[:fade] = x[:fade] * np.linspace(0, 1, fade) + x[-fade:] * np.linspace(1, 0, fade)
+    write("wind_loop", x[:-fade], 0.6)
+
 
 if __name__ == "__main__":
     main()

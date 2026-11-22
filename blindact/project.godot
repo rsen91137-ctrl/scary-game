@@ -67,3 +67,10 @@ textures/vram_compression/import_etc2_astc=false
 textures/decals/filter=5
 textures/light_projectors/filter=5
 rendering_device/fallback_to_d3d12=true
+
+[shader_globals]
+
+wind_gust={
+"type": "float",
+"value": 0.3
+}

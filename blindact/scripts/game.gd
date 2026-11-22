@@ -87,6 +87,7 @@ var phone_off_hook := false
 var night: ActNight
 var ext: Node3D                  # the estate and the forest (scripts/exterior_builder.gd)
 var _ext_ready := false
+var wind: Wind
 const HIDES := {"wardrobe": ["wardrobe_in", "wardrobe_front", "hidden"], "hide_garret": ["hide_garret_in", "hide_garret_front", "hidden"],
 	"hide_dining": ["hide_dining_in", "hide_dining_front", "hidden_low"], "hide_pantry": ["hide_pantry_in", "hide_pantry_front", "hidden"]}
 var _dinner_nodes: Array[Node3D] = []
@@ -647,6 +648,25 @@ func _build_exterior() -> void:
 	_ext_ready = true
 
 
+## Out of doors the wind is up: it sways the trees (and their shadows),
+## rustles the leaves and drags cloud over the moon.
+func _wind_on(on: bool) -> void:
+	if on and wind == null:
+		wind = Wind.new()
+		wind.name = "Wind"
+		add_child(wind)
+		if ext:
+			var moons := ext.find_children("*", "DirectionalLight3D", true, false)
+			if moons.size() > 0:
+				wind.moon = moons[0]
+				wind.moon_energy = wind.moon.light_energy
+	elif not on and wind:
+		if wind.moon:
+			wind.moon.light_energy = wind.moon_energy
+		wind.queue_free()
+		wind = null
+
+
 ## A place outside, in world coordinates.
 func ext_spot(name: String) -> Vector3:
 	var s: Vector3 = ext.spots.get(name, Vector3.ZERO)
@@ -790,6 +810,7 @@ func _act_outside() -> void:
 	var g := _gen
 	act = "outside"
 	ext.enter(world.world_env)
+	_wind_on(true)
 	sunglasses_target = 0.8
 	player.cane_enabled = true
 	var a := load("res://scripts/acts/act_outside.gd")
@@ -802,6 +823,7 @@ func _act_outside() -> void:
 		return
 	ui.fade_to(1.0, 0.8)
 	await wait(1.0)
+	_wind_on(false)
 	ext.exit(world.world_env)
 	_act_stairs()
 
@@ -1265,6 +1287,7 @@ func _out_of_building(g: int) -> void:
 	ui.fade_to(1.0, 0.25)
 	await wait(0.3)
 	ext.enter(world.world_env)
+	_wind_on(true)
 	player.global_position = ext_spot("chase_start") + Vector3(0.0, 0.1, 0.0)
 	var away := ext_spot("forest_gate") - player.global_position
 	player.yaw = atan2(-away.x, -away.z)
